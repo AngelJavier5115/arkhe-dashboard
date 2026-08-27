@@ -18,7 +18,7 @@ export default function App() {
     // 2. Suscribirse a cambios en tiempo real en Supabase
     const subscription = supabase
       .channel('schema-db-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'nodos' }, (payload) => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'investigaciones' }, (payload) => {
         fetchNodes();
       })
       .subscribe();
@@ -30,7 +30,7 @@ export default function App() {
 
   const fetchNodes = async () => {
     const { data, error } = await supabase
-      .from('nodos')
+      .from('investigaciones')
       .select('*')
       .order('created_at', { ascending: false });
 
