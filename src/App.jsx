@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
-import { Activity, ShieldCheck, AlertTriangle, HelpCircle, FileText, CheckCircle2, XCircle, Search } from 'lucide-react';
+import { Activity, Circle, HelpCircle, FileText, CheckCircle2, XCircle, Search } from 'lucide-react';
 import KnowledgeGraph from './KnowledgeGraph';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
@@ -12,13 +12,13 @@ export default function App() {
   const [selectedNode, setSelectedNode] = useState(null);
 
   useEffect(() => {
-    // 1. Cargar nodos iniciales
+    // 1. Cargar nodos iniciales desde la tabla investigaciones
     fetchNodes();
 
     // 2. Suscribirse a cambios en tiempo real en Supabase
     const subscription = supabase
       .channel('schema-db-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'investigaciones' }, (payload) => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'investigaciones' }, () => {
         fetchNodes();
       })
       .subscribe();
@@ -39,153 +39,120 @@ export default function App() {
     }
   };
 
-  // Contadores de estado
+  // Contadores de estado (tolerantes a minúsculas y mayúsculas)
   const metrics = {
     total: nodes.length,
-    postulados: nodes.filter((n) => n.estado === 'Postulado').length,
-    corroborados: nodes.filter((n) => n.estado === 'Corroborado').length,
-    falsados: nodes.filter((n) => n.estado === 'Falsado').length,
-    ruido: nodes.filter((n) => n.estado === 'Ruido').length,
+    postulados: nodes.filter((n) => n.estado?.toLowerCase() === 'postulado').length,
+    corroborados: nodes.filter((n) => n.estado?.toLowerCase() === 'corroborado').length,
+    falsados: nodes.filter((n) => n.estado?.toLowerCase() === 'falsado').length,
+    ruido: nodes.filter((n) => n.estado?.toLowerCase() === 'ruido').length,
   };
 
   const getStatusBadge = (estado) => {
-    switch (estado) {
-      case 'Corroborado':
-        return <span className="px-2 py-0.5 rounded text-xs bg-emerald-950 text-emerald-400 border border-emerald-800 flex items-center gap-1"><CheckCircle2 className="w-3 h-3" /> Corroborado</span>;
-      case 'Falsado':
-        return <span className="px-2 py-0.5 rounded text-xs bg-rose-950 text-rose-400 border border-rose-800 flex items-center gap-1"><XCircle className="w-3 h-3" /> Falsado</span>;
-      case 'Ruido':
-        return <span className="px-2 py-0.5 rounded text-xs bg-amber-950 text-amber-400 border border-amber-800 flex items-center gap-1"><AlertTriangle className="w-3 h-3" /> Ruido</span>;
+    const est = estado?.toLowerCase();
+    switch (est) {
+      case 'corroborado':
+        return <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center gap-1"><CheckCircle2 className="w-3 h-3"/> Corroborado</span>;
+      case 'falsado':
+        return <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-rose-500/10 text-rose-400 border border-rose-500/20 flex items-center gap-1"><XCircle className="w-3 h-3"/> Falsado</span>;
+      case 'ruido':
+        return <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-amber-500/10 text-amber-400 border border-amber-500/20 flex items-center gap-1"><HelpCircle className="w-3 h-3"/> Ruido</span>;
       default:
-        return <span className="px-2 py-0.5 rounded text-xs bg-blue-950 text-blue-400 border border-blue-800 flex items-center gap-1"><HelpCircle className="w-3 h-3" /> Postulado</span>;
+        return <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-blue-500/10 text-blue-400 border border-blue-500/20 flex items-center gap-1"><Circle className="w-3 h-3"/> Postulado</span>;
     }
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 p-4 md:p-8 font-sans">
-      {/* Header */}
-      <header className="flex flex-col md:flex-row md:items-center justify-between pb-6 mb-6 border-b border-slate-800 gap-4">
-        <div>
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-indigo-950 border border-indigo-800 rounded-lg text-indigo-400">
-              <Activity className="w-6 h-6" />
-            </div>
-            <h1 className="text-2xl font-bold tracking-tight text-white">PROYECTO ARKHÉ</h1>
+    <div className="min-h-screen bg-slate-950 text-slate-100 p-4 sm:p-6 md:p-8 font-sans">
+      <div className="max-w-6xl mx-auto space-y-6">
+        
+        {/* Encabezado */}
+        <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-6">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight text-white flex items-center gap-2">
+              <Activity className="w-7 h-7 text-indigo-500" /> PROYECTO ARKHÉ
+            </h1>
+            <p className="text-slate-400 text-sm mt-1">Red Epistémica & Dashboard de Nodos en Tiempo Real</p>
           </div>
-          <p className="text-xs text-slate-400 mt-1">Red Epistémica & Dashboard de Nodos en Tiempo Real</p>
-        </div>
-        <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-900 border border-slate-800 rounded-full text-xs text-slate-300 w-fit">
-          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-          Nodo Aletheia: Online
-        </div>
-      </header>
+          <div className="flex items-center gap-2">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-slate-900 border border-slate-800 text-slate-300">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+              Nodo Aletheia: Online
+            </span>
+          </div>
+        </header>
 
-      {/* Metrics Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 mb-6">
-        <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
-          <p className="text-xs font-semibold text-slate-400 uppercase">Total Nodos</p>
-          <p className="text-2xl font-black text-white mt-1">{metrics.total}</p>
+        {/* Métricas Principales */}
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3 sm:gap-4">
+          <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-4">
+            <p className="text-xs font-medium text-slate-400 uppercase tracking-wider">Total Nodos</p>
+            <p className="text-2xl font-bold text-white mt-1">{metrics.total}</p>
+          </div>
+          <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-4">
+            <p className="text-xs font-medium text-blue-400 uppercase tracking-wider">Postulados</p>
+            <p className="text-2xl font-bold text-blue-400 mt-1">{metrics.postulados}</p>
+          </div>
+          <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-4">
+            <p className="text-xs font-medium text-emerald-400 uppercase tracking-wider">Corroborados</p>
+            <p className="text-2xl font-bold text-emerald-400 mt-1">{metrics.corroborados}</p>
+          </div>
+          <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-4">
+            <p className="text-xs font-medium text-rose-400 uppercase tracking-wider">Falsados</p>
+            <p className="text-2xl font-bold text-rose-400 mt-1">{metrics.falsados}</p>
+          </div>
+          <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-4 col-span-2 md:col-span-1">
+            <p className="text-xs font-medium text-amber-400 uppercase tracking-wider">Ruido</p>
+            <p className="text-2xl font-bold text-amber-400 mt-1">{metrics.ruido}</p>
+          </div>
         </div>
-        <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
-          <p className="text-xs font-semibold text-blue-400 uppercase">Postulados</p>
-          <p className="text-2xl font-black text-blue-400 mt-1">{metrics.postulados}</p>
-        </div>
-        <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
-          <p className="text-xs font-semibold text-emerald-400 uppercase">Corroborados</p>
-          <p className="text-2xl font-black text-emerald-400 mt-1">{metrics.corroborados}</p>
-        </div>
-        <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
-          <p className="text-xs font-semibold text-rose-400 uppercase">Falsados</p>
-          <p className="text-2xl font-black text-rose-400 mt-1">{metrics.falsados}</p>
-        </div>
-        <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 col-span-2 sm:col-span-1">
-          <p className="text-xs font-semibold text-amber-400 uppercase">Ruido</p>
-          <p className="text-2xl font-black text-amber-400 mt-1">{metrics.ruido}</p>
-        </div>
-      </div>
 
-      {/* Grafo Interactivo de Conocimiento (Fase 1) */}
-      <div className="mb-6">
+        {/* Grafo Interactivo */}
         <KnowledgeGraph nodesData={nodes} />
-      </div>
 
-      {/* Main Grid: Feed & Inspector */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Historial Feed */}
-        <div className="lg:col-span-2 space-y-3">
-          <h2 className="text-sm font-semibold text-slate-400 flex items-center gap-2 mb-2">
+        {/* Historial / Feed de Nodos */}
+        <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-4 sm:p-6 space-y-4">
+          <h2 className="text-sm font-semibold text-slate-300 uppercase tracking-wider flex items-center gap-2">
             <FileText className="w-4 h-4 text-indigo-400" /> Historial de Investigaciones
           </h2>
-          {nodes.length === 0 ? (
-            <div className="bg-slate-900 border border-slate-800 rounded-xl p-8 text-center text-slate-500 text-sm">
-              Esperando postulados desde Discord...
-            </div>
-          ) : (
-            nodes.map((nodo) => (
-              <div
-                key={nodo.id}
-                onClick={() => setSelectedNode(nodo)}
-                className={`bg-slate-900 border rounded-xl p-4 transition-all cursor-pointer hover:border-slate-700 ${
-                  selectedNode?.id === nodo.id ? 'border-indigo-500 bg-slate-850' : 'border-slate-800'
-                }`}
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-mono text-slate-500">#{nodo.id}</span>
-                    <span className="text-xs font-bold px-2 py-0.5 bg-slate-800 rounded text-slate-300 uppercase">
-                      {nodo.tipo || 'NODO'}
-                    </span>
-                    {nodo.ref_id && (
-                      <span className="text-xs text-indigo-400 font-mono">↳ Ref: #{nodo.ref_id}</span>
-                    )}
-                  </div>
-                  {getStatusBadge(nodo.estado)}
-                </div>
-                <p className="text-sm text-slate-200 line-clamp-2">{nodo.contenido}</p>
-                <div className="mt-3 flex items-center justify-between text-xs text-slate-500">
-                  <span>Autor: <strong className="text-slate-400">{nodo.autor || 'orgánico'}</strong></span>
-                  <span>{nodo.created_at ? new Date(nodo.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}</span>
-                </div>
+
+          <div className="space-y-3">
+            {nodes.length === 0 ? (
+              <div className="text-center py-8 text-slate-500 text-xs">
+                No hay registros aún en el sistema.
               </div>
-            ))
-          )}
+            ) : (
+              nodes.map((node) => (
+                <div 
+                  key={node.id} 
+                  className="bg-slate-950 border border-slate-800/80 hover:border-slate-700 p-4 rounded-lg transition-all space-y-2"
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-mono text-slate-500">#{node.id}</span>
+                      <span className="font-semibold text-sm text-slate-200 capitalize">{node.tipo || 'Investigación'}</span>
+                      {node.ref_id && (
+                        <span className="text-xs text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded border border-indigo-500/20">
+                          Ref: #{node.ref_id}
+                        </span>
+                      )}
+                    </div>
+                    {getStatusBadge(node.estado)}
+                  </div>
+
+                  <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
+                    {node.contenido || node.texto || node.descripcion}
+                  </p>
+
+                  <div className="flex items-center justify-between text-[11px] text-slate-500 pt-1 border-t border-slate-900">
+                    <span>Autor: <strong className="text-slate-400">{node.autor || 'Nodo Aletheia'}</strong></span>
+                    <span>{node.created_at ? new Date(node.created_at).toLocaleDateString() : 'Reciente'}</span>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
         </div>
 
-        {/* Inspector Panel */}
-        <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 h-fit sticky top-4">
-          <h2 className="text-sm font-semibold text-slate-400 flex items-center gap-2 mb-4">
-            <ShieldCheck className="w-4 h-4 text-indigo-400" /> Inspector Epistémico
-          </h2>
-          {selectedNode ? (
-            <div className="space-y-4 text-xs">
-              <div>
-                <span className="text-slate-500 block mb-1">ID & Estado</span>
-                <div className="flex items-center justify-between">
-                  <span className="font-mono text-slate-300">Nodo #{selectedNode.id}</span>
-                  {getStatusBadge(selectedNode.estado)}
-                </div>
-              </div>
-              <div>
-                <span className="text-slate-500 block mb-1">Contenido de la Premisa</span>
-                <p className="bg-slate-950 p-3 rounded border border-slate-800 text-slate-300 leading-relaxed">
-                  {selectedNode.contenido}
-                </p>
-              </div>
-              {selectedNode.dictamen && (
-                <div>
-                  <span className="text-slate-500 block mb-1">Dictamen del Nodo Aletheia</span>
-                  <p className="bg-slate-950 p-3 rounded border border-slate-800 text-slate-300 leading-relaxed font-mono">
-                    {selectedNode.dictamen}
-                  </p>
-                </div>
-              )}
-            </div>
-          ) : (
-            <div className="text-center py-12 text-slate-500 text-xs">
-              Selecciona un nodo de la lista para inspeccionar su dictamen completo.
-            </div>
-          )}
-        </div>
       </div>
     </div>
   );
