@@ -1,7 +1,9 @@
 # Memoria de Rumbo — Proyecto Arkhé
 
-**Fecha:** 2026-09-03
+**Fecha:** 2026-09-14
 **Estado:** ACTIVA
+**Archivo Maestro operativo:** `docs/ARCHIVO_MAESTRO_ARKHE_v0.2.md`
+**Archivo Maestro histórico:** `Archivo_Maestro_Arkhé_v0.1.md`
 **Spawnpoint de referencia:** `docs/SPAWNPOINT_METODOLOGIA_ARKE_0_X.md`
 
 ## Propósito
@@ -55,6 +57,7 @@ El spawnpoint **no** afirma robustez epistemológica general, escalabilidad, con
 7. Fallos de motores y canales.
 8. Sincronización entre canales de comunicación.
 9. Seguridad antes de exposición pública.
+10. Criterios formales para evaluar la calidad de una investigación.
 
 ## Regla de alineación
 Antes de un cambio importante debemos responder:
@@ -83,6 +86,15 @@ Revisar antes de avanzar si una propuesta:
 
 Una señal de desviación no implica que la idea sea incorrecta; implica que requiere revisión consciente.
 
+## Arquitectura documental
+A partir de la versión 0.2 se separan tres niveles:
+
+1. **Memoria maestra operativa:** `docs/ARCHIVO_MAESTRO_ARKHE_v0.2.md`.
+2. **Archivo histórico:** `Archivo_Maestro_Arkhé_v0.1.md` y memorias anteriores.
+3. **Fuentes originales:** conversaciones, exportaciones e informes que permiten reconstruir el origen de decisiones.
+
+El objetivo es **reducir ruido sin perder memoria**.
+
 ## Prioridades
 1. Preservar propósito y metodología.
 2. Preservar memoria y trazabilidad.
@@ -95,8 +107,8 @@ Una señal de desviación no implica que la idea sea incorrecta; implica que req
 ## Estado actual
 **Metodología central funcionalmente validada en escenario controlado; robustez todavía en investigación.**
 
-No estamos empezando de cero: tenemos una base funcional, un spawnpoint, una metodología probada y esta memoria de rumbo.
+No estamos empezando de cero: tenemos una base funcional, un spawnpoint, una metodología probada, cuatro investigadores y una memoria maestra operativa.
 
 > **Arkhé no avanza por acumular funciones; avanza cuando cada nueva capacidad conserva el propósito, la memoria, la libertad de investigación y el control humano mientras aumenta nuestra capacidad para preguntar, contrastar, construir y comprender.**
 
-**Regla final:** cuando no sepamos qué sigue, volvemos a esta memoria y al spawnpoint antes de decidir el siguiente paso.
+**Regla final:** cuando no sepamos qué sigue, volvemos al Archivo Maestro operativo, esta memoria y el spawnpoint antes de decidir el siguiente paso.
