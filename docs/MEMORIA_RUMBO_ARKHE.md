@@ -1,10 +1,11 @@
 # Memoria de Rumbo — Proyecto Arkhé
 
-**Fecha:** 2026-09-14
-**Estado:** ACTIVA
-**Archivo Maestro operativo:** `docs/ARCHIVO_MAESTRO_ARKHE_v0.2.md`
-**Archivo Maestro histórico:** `Archivo_Maestro_Arkhé_v0.1.md`
-**Spawnpoint de referencia:** `docs/SPAWNPOINT_METODOLOGIA_ARKE_0_X.md`
+**Fecha:** 2026-09-16  
+**Estado:** ACTIVA  
+**Archivo Maestro operativo:** `docs/ARCHIVO_MAESTRO_ARKHE_v0.2.md`  
+**Archivo Maestro histórico:** `Archivo_Maestro_Arkhé_v0.1.md`  
+**Spawnpoint de referencia:** `docs/SPAWNPOINT_METODOLOGIA_ARKE_0_X.md`  
+**Excavación histórica nueva:** `docs/EXCAVACION_CRUCE_EXPORTACIONES_ARKHE_v0.1.md`
 
 ## Propósito
 Esta memoria conserva el rumbo conceptual y operativo de Arkhé entre etapas. Antes de cambios importantes responde: **¿esto fortalece Arkhé o nos desvía?**
@@ -94,6 +95,20 @@ A partir de la versión 0.2 se separan tres niveles:
 3. **Fuentes originales:** conversaciones, exportaciones e informes que permiten reconstruir el origen de decisiones.
 
 El objetivo es **reducir ruido sin perder memoria**.
+
+### Nueva evidencia histórica — 2026-09-16
+Se completó una primera excavación cruzada de las exportaciones de Atlas/ChatGPT y Aletheia/Gemini: `docs/EXCAVACION_CRUCE_EXPORTACIONES_ARKHE_v0.1.md`.
+
+Hallazgos principales:
+- 24 de julio de 2026 queda como el inicio más antiguo de Arkhé que podemos demostrar actualmente en la exportación conversacional de Atlas; no se afirma que sea el nacimiento absoluto.
+- Árbol/poda están documentados el 26 de julio.
+- Doble Rendija, Hipótesis Evolutiva, Error Productivo y Comprensión Profunda están documentados en la conversación de Atlas del 31 de julio; Error Productivo queda demostrado al menos desde esa fecha.
+- La incorporación formal de Aletheia queda documentada en la actividad de Gemini del 4 de agosto.
+- Tekton aparece nombrado en Atlas el 31 de julio, pero su incorporación formal como cuarto investigador queda documentada claramente en la actividad de Gemini del 23 de agosto.
+- La necesidad de memoria externa se relaciona con problemas reales de continuidad y comprensión de archivos durante agosto.
+- La distinción **Investigador ≠ modelo ≠ canal** debe entenderse como una regla evolucionada durante la implementación, no como una premisa necesariamente completa desde el inicio.
+
+**Corrección de rigor documental:** `MiActividad.json` de Gemini registra principalmente las peticiones/actividad de Ángel y no constituye por sí mismo una transcripción completa de las respuestas de Gemini. Por ello, las conclusiones atribuidas a Aletheia deben apoyarse en contenido explícito conservado en las fuentes o tratarse como evidencia secundaria cuando Ángel reproduce una respuesta.
 
 ## Prioridades
 1. Preservar propósito y metodología.
