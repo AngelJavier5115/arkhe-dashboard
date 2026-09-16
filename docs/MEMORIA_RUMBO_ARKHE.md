@@ -5,7 +5,7 @@
 **Archivo Maestro operativo:** `docs/ARCHIVO_MAESTRO_ARKHE_v0.2.md`  
 **Archivo Maestro histórico:** `Archivo_Maestro_Arkhé_v0.1.md`  
 **Spawnpoint de referencia:** `docs/SPAWNPOINT_METODOLOGIA_ARKE_0_X.md`  
-**Excavación histórica nueva:** `docs/EXCAVACION_CRUCE_EXPORTACIONES_ARKHE_v0.1.md`
+**Excavaciones históricas relevantes:** `docs/EXCAVACION_CRUCE_EXPORTACIONES_ARKHE_v0.1.md`, `docs/EXCAVACION_EXPERIMENTOS_Y_CAMBIOS_CRONOLOGICOS_ARKHE_v0.1.md`
 
 ## Propósito
 Esta memoria conserva el rumbo conceptual y operativo de Arkhé entre etapas. Antes de cambios importantes responde: **¿esto fortalece Arkhé o nos desvía?**
@@ -109,6 +109,25 @@ Hallazgos principales:
 - La distinción **Investigador ≠ modelo ≠ canal** debe entenderse como una regla evolucionada durante la implementación, no como una premisa necesariamente completa desde el inicio.
 
 **Corrección de rigor documental:** `MiActividad.json` de Gemini registra principalmente las peticiones/actividad de Ángel y no constituye por sí mismo una transcripción completa de las respuestas de Gemini. Por ello, las conclusiones atribuidas a Aletheia deben apoyarse en contenido explícito conservado en las fuentes o tratarse como evidencia secundaria cuando Ángel reproduce una respuesta.
+
+### Nueva excavación — experimentos y cambios cronológicos — 2026-09-16
+Se incorporó `docs/EXCAVACION_EXPERIMENTOS_Y_CAMBIOS_CRONOLOGICOS_ARKHE_v0.1.md` como Capa 3D.
+
+El hallazgo central es que los cambios metodológicos más sólidos aparecen cuando una idea encuentra una fricción concreta y esa fricción obliga a modificar la pregunta, el criterio, el método o la arquitectura.
+
+Casos reconstruidos:
+- aprendizaje: de páginas leídas a ideas comprendidas y aplicables;
+- negocios: de “qué negocio” a “qué necesidad recurrente”;
+- PEC: de filtro de herramientas a instrumento que también genera conocimiento metodológico;
+- Photoshop: reapertura de una decisión al aparecer una variable relevante del investigador;
+- independencia del método respecto de herramientas;
+- evolución de perspectivas diferenciadas hasta la arquitectura de cuatro investigadores;
+- memoria: sustitución de arquitecturas concretas sin perder la necesidad original de continuidad;
+- metodología técnica: perspectivas → análisis humano → réplica dirigida → trazabilidad → ausencia de continuación automática.
+
+Esta excavación refuerza una distinción importante: **no todo cambio de rumbo es un error**. Deben distinguirse error cometido, error evitado, cambio por evidencia, evolución de método y propuesta no validada.
+
+El siguiente frente histórico queda delimitado como **Capa 3E — decisiones aceptadas y posteriormente reemplazadas**, buscando la cadena: propuesta → aceptación → uso → limitación → reemplazo → razón del reemplazo.
 
 ## Prioridades
 1. Preservar propósito y metodología.
