@@ -1,11 +1,11 @@
 # Memoria de Rumbo — Proyecto Arkhé
 
-**Fecha:** 2026-09-16  
+**Fecha:** 2026-09-17  
 **Estado:** ACTIVA  
 **Archivo Maestro operativo:** `docs/ARCHIVO_MAESTRO_ARKHE_v0.2.md`  
 **Archivo Maestro histórico:** `Archivo_Maestro_Arkhé_v0.1.md`  
 **Spawnpoint de referencia:** `docs/SPAWNPOINT_METODOLOGIA_ARKE_0_X.md`  
-**Excavaciones históricas relevantes:** `docs/EXCAVACION_CRUCE_EXPORTACIONES_ARKHE_v0.1.md`, `docs/EXCAVACION_EXPERIMENTOS_Y_CAMBIOS_CRONOLOGICOS_ARKHE_v0.1.md`
+**Excavaciones históricas relevantes:** `docs/EXCAVACION_CRUCE_EXPORTACIONES_ARKHE_v0.1.md`, `docs/EXCAVACION_EXPERIMENTOS_Y_CAMBIOS_CRONOLOGICOS_ARKHE_v0.1.md`, `docs/EXCAVACION_DECISIONES_REEMPLAZADAS_ARKHE_v0.1.md`, `docs/EXCAVACION_ERRORES_IMPLEMENTACION_ARKHE_v0.1.md`, `docs/EXCAVACION_DECISIONES_TECNICAS_ARKHE_v0.1.md`
 
 ## Propósito
 Esta memoria conserva el rumbo conceptual y operativo de Arkhé entre etapas. Antes de cambios importantes responde: **¿esto fortalece Arkhé o nos desvía?**
@@ -127,7 +127,62 @@ Casos reconstruidos:
 
 Esta excavación refuerza una distinción importante: **no todo cambio de rumbo es un error**. Deben distinguirse error cometido, error evitado, cambio por evidencia, evolución de método y propuesta no validada.
 
-El siguiente frente histórico queda delimitado como **Capa 3E — decisiones aceptadas y posteriormente reemplazadas**, buscando la cadena: propuesta → aceptación → uso → limitación → reemplazo → razón del reemplazo.
+### Nueva excavación — decisiones aceptadas y posteriormente reemplazadas — 2026-09-16
+Se incorporó `docs/EXCAVACION_DECISIONES_REEMPLAZADAS_ARKHE_v0.1.md` como Capa 3E.
+
+Hallazgo central: Arkhé ha reemplazado soluciones sin cambiar necesariamente su identidad. Se identificaron cuatro patrones: reemplazo por escala, cambio de categoría, nueva arquitectura y refinamiento sin reemplazo.
+
+Casos destacados:
+- chat/bitácora → memoria documental versionada;
+- Archivo Maestro v0.1 → v0.2 operativo + v0.1 histórico;
+- PEC central → instrumento secundario;
+- tres llaves → protección compatible con cuatro investigadores;
+- Ángel + Atlas → arquitectura ampliada, sin abandonar la relación original;
+- Doble Rendija → refinamiento con falsabilidad explícita;
+- dependencia de herramientas → independencia del método respecto de ellas.
+
+La regla histórica derivada es: **separar lo que una decisión intentaba proteger de la forma concreta que utilizó para protegerlo.**
+
+### Nueva excavación — errores de implementación y cambios de arquitectura técnica — 2026-09-17
+Se incorporó `docs/EXCAVACION_ERRORES_IMPLEMENTACION_ARKHE_v0.1.md` como Capa 3F.
+
+La capa distingue estrictamente entre error local de implementación, contrato de datos, limitación de proveedor, restricción de canal, redundancia arquitectónica y cambio metodológico.
+
+Casos reconstruidos:
+- nodo de memoria ≠ ronda;
+- UUID ≠ identificador numérico inconsistente entre capas;
+- DeepSeek → Groq como cambio de infraestructura, no de identidad de Tekton;
+- `reasoning_effort` como supuesto de compatibilidad corregido;
+- retiro de `tekton-evaluar` por redundancia;
+- fragmentación de respuestas como adaptación de transporte;
+- separación del adaptador Discord respecto del contrato metodológico;
+- consolidación de la ronda como entidad persistente y trazable.
+
+Regla técnica derivada: **cuando una implementación falla, primero debemos localizar el nivel del fallo antes de modificar el principio que la implementación pretendía realizar.**
+
+### Nueva excavación — decisiones técnicas y arquitectura absorbida — 2026-09-17
+Se incorporó `docs/EXCAVACION_DECISIONES_TECNICAS_ARKHE_v0.1.md` como Capa 3G.
+
+Esta capa distingue entre decisión técnica explícita, experimento, solución provisional, código descartado, arquitectura absorbida, arquitectura vigente y decisión no demostrada.
+
+Hallazgos principales:
+- la separación nodo → ronda → intervención quedó absorbida como arquitectura de trazabilidad;
+- la réplica padre → intervención → destinatario quedó consolidada como representación técnica de la metodología;
+- el adaptador Discord quedó separado del núcleo metodológico;
+- el proveedor de modelo pasó a ser un componente sustituible respecto de la identidad del investigador;
+- parámetros específicos de proveedor fueron tratados como provisionales, no como reglas generales;
+- `tekton-evaluar` fue descartado como ruta redundante mientras la capacidad de análisis de Tekton sobrevivió;
+- las restricciones de Discord se resolvieron como problemas de transporte, no de epistemología;
+- la consistencia de UUID quedó absorbida en el contrato de datos;
+- el spawnpoint quedó entendido como referencia protegida y reversible, no como congelación de toda implementación.
+
+También se registra una precaución documental: algunos SHA históricos mencionados en excavaciones anteriores ya no son recuperables directamente mediante el endpoint actual del repositorio. Esos casos se mantienen como evidencia histórica secundaria hasta disponer de una fuente primaria recuperable.
+
+El patrón técnico general reconstruido es:
+
+**experimento → fricción → diagnóstico → separación/simplificación → nueva prueba → absorción de lo útil.**
+
+La siguiente capa ya no necesita descender indefinidamente por cada commit. El próximo frente queda definido como una **síntesis de la excavación 3**: identificar qué patrones repetidos de aprendizaje, error, reemplazo y construcción merecen convertirse en reglas explícitas de Arkhé 0.2 y cuáles deben permanecer como historia.
 
 ## Prioridades
 1. Preservar propósito y metodología.
