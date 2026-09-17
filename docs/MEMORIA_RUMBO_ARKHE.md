@@ -5,7 +5,7 @@
 **Archivo Maestro operativo:** `docs/ARCHIVO_MAESTRO_ARKHE_v0.2.md`  
 **Archivo Maestro histórico:** `Archivo_Maestro_Arkhé_v0.1.md`  
 **Spawnpoint de referencia:** `docs/SPAWNPOINT_METODOLOGIA_ARKE_0_X.md`  
-**Excavaciones históricas relevantes:** `docs/EXCAVACION_CRUCE_EXPORTACIONES_ARKHE_v0.1.md`, `docs/EXCAVACION_EXPERIMENTOS_Y_CAMBIOS_CRONOLOGICOS_ARKHE_v0.1.md`, `docs/EXCAVACION_DECISIONES_REEMPLAZADAS_ARKHE_v0.1.md`, `docs/EXCAVACION_ERRORES_IMPLEMENTACION_ARKHE_v0.1.md`, `docs/EXCAVACION_DECISIONES_TECNICAS_ARKHE_v0.1.md`
+**Excavaciones históricas relevantes:** `docs/EXCAVACION_CRUCE_EXPORTACIONES_ARKHE_v0.1.md`, `docs/EXCAVACION_EXPERIMENTOS_Y_CAMBIOS_CRONOLOGICOS_ARKHE_v0.1.md`, `docs/EXCAVACION_DECISIONES_REEMPLAZADAS_ARKHE_v0.1.md`, `docs/EXCAVACION_ERRORES_IMPLEMENTACION_ARKHE_v0.1.md`, `docs/EXCAVACION_DECISIONES_TECNICAS_ARKHE_v0.1.md`, `docs/SINTESIS_EXCAVACION_ARKHE_v0.1.md`
 
 ## Propósito
 Esta memoria conserva el rumbo conceptual y operativo de Arkhé entre etapas. Antes de cambios importantes responde: **¿esto fortalece Arkhé o nos desvía?**
@@ -182,7 +182,34 @@ El patrón técnico general reconstruido es:
 
 **experimento → fricción → diagnóstico → separación/simplificación → nueva prueba → absorción de lo útil.**
 
-La siguiente capa ya no necesita descender indefinidamente por cada commit. El próximo frente queda definido como una **síntesis de la excavación 3**: identificar qué patrones repetidos de aprendizaje, error, reemplazo y construcción merecen convertirse en reglas explícitas de Arkhé 0.2 y cuáles deben permanecer como historia.
+### Nueva síntesis — Capa 3H — 2026-09-17
+Se incorporó `docs/SINTESIS_EXCAVACION_ARKHE_v0.1.md` como síntesis de la excavación 3.
+
+La pregunta de esta capa dejó de ser “¿qué ocurrió?” y pasó a ser “¿qué patrones se repiten lo suficiente para convertirse en reglas explícitas de Arkhé 0.2 y cuáles deben permanecer como historia?”.
+
+Patrones consolidados o candidatos identificados:
+- el propósito sobrevive a la forma;
+- el método debe sobrevivir al instrumento;
+- ante un fallo, diagnosticar el nivel antes de cambiar el principio;
+- la trazabilidad es parte de la metodología, no solo un detalle técnico;
+- el desacuerdo es información y el consenso no es evidencia;
+- la intervención humana es una etapa sustantiva, no decorativa;
+- la provisionalidad permite cambiar conclusiones con nueva evidencia;
+- simplificar y retirar redundancias también constituye progreso;
+- la historia puede preservarse sin saturar la memoria operativa;
+- los experimentos posteriores deben distinguirse del estado validado por el spawnpoint;
+- la complejidad debe justificar su existencia;
+- la arquitectura debe poder cambiar sin perder identidad.
+
+La síntesis clasifica como candidatos a regla explícita, sujetos a decisión posterior, seis patrones: diagnóstico por nivel, complejidad justificada, simplificación como avance, trazabilidad suficiente, modularidad de identidad y separación entre validación y experimento.
+
+La conclusión histórica de la Capa 3 es:
+
+> **Arkhé aprende cuando una fricción obliga a distinguir mejor aquello que antes estaba mezclado.**
+
+Esta frase es una síntesis de la evidencia excavada, no una validación experimental general.
+
+La excavación histórica principal queda suficientemente sintetizada para regresar al presente. El siguiente paso es una revisión corta: decidir qué candidatos A–F entran realmente en Arkhé 0.2, cuáles permanecen como historia/preguntas abiertas y qué experimento debe realizarse después del spawnpoint.
 
 ## Prioridades
 1. Preservar propósito y metodología.
@@ -194,7 +221,7 @@ La siguiente capa ya no necesita descender indefinidamente por cada commit. El p
 7. Automatización cuando exista una necesidad real.
 
 ## Estado actual
-**Metodología central funcionalmente validada en escenario controlado; robustez todavía en investigación.**
+**Metodología central funcionalmente validada en escenario controlado; robustez todavía en investigación. La excavación histórica principal de la Capa 3 ya fue sintetizada; queda pendiente decidir qué candidatos de la Capa 3H se formalizan en Arkhé 0.2.**
 
 No estamos empezando de cero: tenemos una base funcional, un spawnpoint, una metodología probada, cuatro investigadores y una memoria maestra operativa.
 
