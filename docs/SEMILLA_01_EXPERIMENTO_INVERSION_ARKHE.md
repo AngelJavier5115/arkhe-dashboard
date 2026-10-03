@@ -87,3 +87,18 @@ Semilla 01 no busca demostrar que una inversión concreta es “la mejor”. Bus
 
 **Primero investigamos. Después contrastamos. Luego Ángel decide si sembramos.**
 
+
+
+## Evidencia histórica aportada por Ángel — experiencia previa con GBM
+
+Antes de iniciar Semilla 01, Ángel recuerda una experiencia anterior con GBM: depositó aproximadamente **$200 MXN**, no aprendió a operar mucho la plataforma y dejó el dinero allí sin intervenir durante un tiempo. Al retirarlo, recuerda haber recibido algunos pesos y centavos adicionales.
+
+Esta observación se conserva como **testimonio retrospectivo de Ángel**, no como medición financiera auditada: no tenemos todavía fecha, producto exacto, tasa, periodo, movimientos ni estado de cuenta que permitan reconstruir el rendimiento.
+
+La experiencia sí aporta una pregunta relevante para Semilla 01:
+
+**¿Existen instrumentos en los que una cantidad pequeña pueda permanecer invertida y generar rendimiento sin que el usuario tenga que realizar operaciones frecuentes?**
+
+En la investigación actual, GBM documenta que **Smart Cash** genera rendimientos diarios, que el rendimiento se suma al saldo y se reinvierte automáticamente, y que se puede iniciar con $100 MXN. Actualmente GBM informa una tasa anual de Smart Cash de entre 4.00% y 4.75% según la inversión total en GBM; la tasa puede cambiar. citeturn878212search1turn878212search7turn878212search0
+
+Esto convierte la experiencia previa de Ángel en una **pista de investigación**, no en una prueba de que el producto actual sea equivalente al que utilizó entonces.
