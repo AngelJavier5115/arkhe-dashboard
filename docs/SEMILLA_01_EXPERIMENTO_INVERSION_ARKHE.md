@@ -170,3 +170,20 @@ Una tasa de 15% que exige condiciones que no queremos cumplir no es equivalente,
 ## Siguiente fase
 
 La investigación queda abierta. Antes de sembrar los $100, construiremos una tabla común con los candidatos y calcularemos cuánto producirían aproximadamente los mismos $100 bajo plazos comparables, sin tratar esas cifras como garantías.
+
+
+## Segunda evidencia histórica aportada por Ángel — experiencia previa con CETESdirecto
+
+Ángel también recuerda haber intentado invertir anteriormente mediante CETESdirecto. En ese momento no comprendió bien cómo funcionaba la plataforma ni cómo mover/administrar la inversión, por lo que esta experiencia no llegó a convertirse en un aprendizaje financiero completo.
+
+Esta experiencia se conserva como **testimonio retrospectivo**, no como medición de rendimiento. No se conocen todavía el instrumento exacto, monto, fecha, plazo ni resultado final.
+
+Su valor para Semilla 01 es metodológico: muestra que **tener acceso a un instrumento sencillo no equivale necesariamente a comprenderlo**.
+
+Por ello se incorpora una pregunta adicional a la investigación:
+
+**¿Qué tan comprensible es cada opción para Ángel, desde el celular y partiendo prácticamente desde cero?**
+
+Esto añade una dimensión de **usabilidad/comprensión** al experimento, sin sustituir las dimensiones financieras de riesgo, liquidez, rendimiento y protección.
+
+En la información oficial actual, CETESdirecto explica que los CETES se compran a descuento y que la ganancia al vencimiento es la diferencia entre el precio pagado y su valor nominal; también explica que la plataforma puede operar distintos plazos y que BONDDIA funciona como vehículo de liquidez diaria. citeturn295497search0turn630304search10
