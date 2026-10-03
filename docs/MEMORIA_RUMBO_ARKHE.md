@@ -228,3 +228,20 @@ No estamos empezando de cero: tenemos una base funcional, un spawnpoint, una met
 > **Arkhé no avanza por acumular funciones; avanza cuando cada nueva capacidad conserva el propósito, la memoria, la libertad de investigación y el control humano mientras aumenta nuestra capacidad para preguntar, contrastar, construir y comprender.**
 
 **Regla final:** cuando no sepamos qué sigue, volvemos al Archivo Maestro operativo, esta memoria y el spawnpoint antes de decidir el siguiente paso.
+
+
+### Nueva línea de investigación — Semilla 01 — 2026-10-03
+
+Ángel decidió iniciar un experimento personal de pequeña inversión llamado **Semilla 01**. Los $100 MXN iniciales se consideran dinero personal de Ángel destinado deliberadamente a “tirar una semilla al futuro” para observar si con el tiempo puede florecer algo no planeado. No es fondo de emergencia, ahorro operativo ni obligación periódica.
+
+Reglas iniciales:
+- Los $100 son una asignación personal separada de gastos, deudas, emergencias y ahorro ordinario.
+- No existe obligación de aportar una cantidad fija ni con una periodicidad determinada.
+- Pueden existir nuevas semillas cuando Ángel tenga ingresos y decida voluntariamente sembrar otra cantidad.
+- El objetivo inicial no es maximizar rendimiento, sino experimentar, aprender y observar crecimiento a pequeña escala.
+- Antes de elegir instrumento se investigarán seguridad/riesgo, liquidez, crecimiento potencial, escalabilidad y aprendizaje.
+- La investigación será independiente y comparativa: Ángel investigará por su cuenta y Atlas investigará por separado; posteriormente se contrastarán hallazgos.
+- No se asumirá de antemano que CETES u otro instrumento sea la respuesta.
+- Cualquier decisión de inversión concreta queda bajo conducción de Ángel.
+
+La investigación inicial identificó que cetesdirecto permite invertir desde $100 MXN y ofrece acceso directo a valores gubernamentales sin comisiones; también existen alternativas como BONDDIA con liquidez diaria. Estos datos son puntos de partida para investigación, no una decisión de inversión.
