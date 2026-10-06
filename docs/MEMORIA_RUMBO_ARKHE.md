@@ -245,3 +245,26 @@ Reglas iniciales:
 - Cualquier decisión de inversión concreta queda bajo conducción de Ángel.
 
 La investigación inicial identificó que cetesdirecto permite invertir desde $100 MXN y ofrece acceso directo a valores gubernamentales sin comisiones; también existen alternativas como BONDDIA con liquidez diaria. Estos datos son puntos de partida para investigación, no una decisión de inversión.
+
+### Reanudación técnica — 2026-10-06
+
+Se establece como referencia de trabajo de la etapa posterior al spawnpoint el documento:
+
+- `docs/PLAN_REANUDACION_TECNICA_ARKHE.md`
+
+El plan fija a Ángel como conductor operativo de las rondas. Atlas, Aletheia y Tekton no son centros de gobierno de una ronda: aportan perspectivas independientes y responden únicamente cuando Ángel los convoca.
+
+El flujo objetivo permite iniciar una consulta con uno, varios o los tres investigadores; seleccionar cualquier intervención como foco de un debate; pedir respuestas dirigidas a uno o varios investigadores; continuar, pausar o finalizar por decisión humana; y registrar un cierre humano sin convertir consenso de IA en verdad.
+
+La implementación futura debe separar identidad del investigador, motor/modelo, cuerpo/canal, memoria y gobierno de rondas.
+
+Infraestructura de referencia:
+- GitHub: memoria documental y código.
+- Supabase: memoria estructurada.
+- Discord: cuerpos/canales de investigadores.
+- Vercel: Dashboard.
+- Render: ejecución de servicios.
+- Sentry: candidato/sistema de diagnóstico y observabilidad.
+- n8n: futura capa de automatización cotidiana.
+
+El plan debe consultarse antes de retomar trabajo después de una interrupción de conversación.
