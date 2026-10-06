@@ -403,10 +403,19 @@ async function actionCompleteInvocation(supabase, body) {
 async function actionOpenDebate(supabase, body) {
   requireAngel(body.actor_id);
 
-  const parentRoundId = uuid(body.ronda_padre_id, 'ronda_padre_id');
   const focusId = uuid(body.foco_intervencion_id, 'foco_intervencion_id');
   const participants = ids(body.investigadores);
 
+  const { data: focoBase, error: focoBaseError } = await supabase
+    .from('intervenciones_ronda')
+    .select('id, ronda_id, investigador_id, tipo, contenido, nodo_id, created_at')
+    .eq('id', focusId)
+    .single();
+
+  if (focoBaseError) throw focoBaseError;
+  if (!focoBase) throw new Error('La intervención foco no existe.');
+
+  const parentRoundId = body.ronda_padre_id ?? focoBase.ronda_id;
   const parentContext = await loadRoundContext(supabase, parentRoundId);
 
   if (!['abierta', 'pausada', 'cerrada'].includes(parentContext.ronda.estado)) {
