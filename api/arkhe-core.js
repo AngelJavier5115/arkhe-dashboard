@@ -185,8 +185,31 @@ async function actionStartRound(supabase, body) {
 
   if (numeroError) throw numeroError;
 
+  let nodoContexto = null;
+  if (body.nodo_id != null) {
+    const { data: nodo, error: nodoError } = await supabase
+      .from('investigaciones')
+      .select('id, ref_id, autor, contenido, tipo, metadata, estado, created_at')
+      .eq('id', body.nodo_id)
+      .single();
+    if (nodoError) throw nodoError;
+    if (!nodo) throw new Error(`Nodo ${body.nodo_id} no encontrado.`);
+
+    const { data: link, error: linkError } = await supabase
+      .from('investigacion_nodos')
+      .select('investigacion_id')
+      .eq('investigacion_id', investigacionId)
+      .eq('nodo_id', body.nodo_id)
+      .maybeSingle();
+    if (linkError) throw linkError;
+    if (!link) throw new Error(`El nodo #${body.nodo_id} no pertenece a la investigación ${investigacion.codigo}.`);
+
+    nodoContexto = nodo;
+  }
+
   const contexto = {
     ...(body.contexto ?? {}),
+    ...(nodoContexto ? { nodo: nodoContexto } : {}),
     gobernanza: {
       controlador: ANGEL_ID,
       participantes_iniciales: participantIds
