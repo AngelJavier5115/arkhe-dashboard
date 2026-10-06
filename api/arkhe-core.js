@@ -153,23 +153,32 @@ async function loadRoundContext(supabase, rondaId) {
 async function actionStartRound(supabase, body) {
   requireAngel(body.actor_id);
 
-  const investigacionId = uuid(body.investigacion_id, 'investigacion_id');
   const participantIds = ids(body.participantes);
 
   if (!allowedRoundTypes.has(body.tipo ?? 'consulta')) {
     throw new Error('Tipo de ronda inválido.');
   }
 
-  await assertParticipants(supabase, investigacionId, participantIds);
-
-  const { data: investigacion, error: invError } = await supabase
+  let investigacionQuery = supabase
     .from('investigaciones_proyecto')
-    .select('id, codigo, titulo, objetivo, pregunta, descripcion, estado')
-    .eq('id', investigacionId)
-    .single();
+    .select('id, codigo, titulo, objetivo, pregunta, descripcion, estado');
+
+  if (body.investigacion_id) {
+    investigacionQuery = investigacionQuery.eq('id', body.investigacion_id);
+  } else if (body.investigacion_codigo) {
+    investigacionQuery = investigacionQuery.eq('codigo', body.investigacion_codigo);
+  } else {
+    throw new Error('investigacion_id o investigacion_codigo es obligatorio.');
+  }
+
+  const { data: investigacion, error: invError } = await investigacionQuery.single();
 
   if (invError) throw invError;
   if (!investigacion) throw new Error('Investigación no encontrada.');
+
+  const investigacionId = investigacion.id;
+
+  await assertParticipants(supabase, investigacionId, participantIds);
 
   const { data: numeroData, error: numeroError } = await supabase
     .rpc('arkhe_siguiente_numero_ronda', { p_investigacion_id: investigacionId });
@@ -222,6 +231,8 @@ async function actionCreateInvocations(supabase, body) {
   if (!['abierta', 'pausada'].includes(context.ronda.estado)) {
     throw new Error('La ronda no acepta nuevas convocatorias en su estado actual.');
   }
+
+  await assertParticipants(supabase, context.ronda.investigacion_id, participantIds);
 
   const invocations = participantIds.map(investigadorId => ({
     ronda_id: rondaId,
