@@ -352,36 +352,27 @@ async function actionCompleteInvocation(supabase, body) {
     throw new Error('La convocatoria ya fue completada o cancelada.');
   }
 
-  const { data: ultima, error: ultimaError } = await supabase
-    .from('intervenciones_ronda')
-    .select('orden')
-    .eq('ronda_id', rondaId)
-    .order('orden', { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  const metadata = {
+    ...(body.metadata ?? {}),
+    convocatoria_id: convocatoriaId,
+    identidad_version: body.identidad_version ?? null,
+    modelo: body.modelo ?? null,
+    proveedor: body.proveedor ?? null
+  };
 
-  if (ultimaError) throw ultimaError;
-
-  const { data: intervencion, error: intervencionError } = await supabase
-    .from('intervenciones_ronda')
-    .insert({
-      ronda_id: rondaId,
-      investigador_id: investigadorId,
-      orden: (ultima?.orden ?? 0) + 1,
-      tipo: body.tipo ?? 'perspectiva',
-      contenido: body.contenido,
-      responde_a_intervencion_id: body.responde_a_intervencion_id ?? convocatoria.foco_intervencion_id ?? null,
-      nodo_id: body.nodo_id ?? null,
-      metadata: {
-        ...(body.metadata ?? {}),
-        convocatoria_id: convocatoriaId,
-        identidad_version: body.identidad_version ?? null,
-        modelo: body.modelo ?? null,
-        proveedor: body.proveedor ?? null
-      }
-    })
-    .select('*')
-    .single();
+  const { data: intervencion, error: intervencionError } = await supabase.rpc(
+    'arkhe_insert_intervencion_ronda',
+    {
+      p_ronda_id: rondaId,
+      p_investigador_id: investigadorId,
+      p_tipo: body.tipo ?? 'perspectiva',
+      p_contenido: body.contenido,
+      p_responde_a_intervencion_id:
+        body.responde_a_intervencion_id ?? convocatoria.foco_intervencion_id ?? null,
+      p_nodo_id: body.nodo_id ?? null,
+      p_metadata: metadata
+    }
+  );
 
   if (intervencionError) throw intervencionError;
 
