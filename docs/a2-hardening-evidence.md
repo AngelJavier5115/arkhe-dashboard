@@ -117,6 +117,22 @@ No se observó una ejecución de GitHub Actions en el conector disponible, por l
 - llamada HTTP real al Core protegido: pendiente de demostración;
 - procedencia independiente del modelo: pendiente.
 
+### HTTP real al preview
+
+Se intentó una petición POST real al preview con firma Atlas válida, timestamp fresco, nonce y cuerpo de `obtener_convocatoria`.
+
+La petición llegó a Vercel, pero la capa de Vercel Authentication respondió `401 Protected by Vercel Authentication` antes de alcanzar al Core.
+
+Se creó un bypass temporal de 5 minutos exclusivamente para el preview durante esta prueba y se revocó inmediatamente después.
+
+No se contabiliza este intento como prueba de autorización del Core porque la petición no atravesó la protección de Vercel.
+
+### Prueba de integración adicional
+
+Se preparó un sandbox aislado con el código exacto de esta rama y dependencias instaladas para intentar ejecutar el handler contra el Supabase real.
+
+Los controles de ejecución bloquearon ese arnés al intentar cruzar la frontera de ejecución con el backend real, por lo que no se falsea el resultado: esta integración queda pendiente.
+
 ## Regla de integración
 
 Esta rama no debe fusionarse a `main` solo porque el código compile.
