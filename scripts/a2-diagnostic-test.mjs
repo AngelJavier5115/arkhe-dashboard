@@ -19,6 +19,8 @@ const signatureBuffer = sign(null, payloadBuffer, privateKey);
 
 console.log('Firma local:', verify(null, payloadBuffer, createPublicKey(privateKey), signatureBuffer) ? 'OK' : 'FAIL');
 console.log('FirmaHash local:', createHash('sha256').update(signatureBuffer).digest('hex'));
+console.log('PayloadHash local:', createHash('sha256').update(payloadBuffer).digest('hex'));
+console.log('PublicKeyFingerprint local:', createHash('sha256').update(createPublicKey(privateKey).export({ type: 'spki', format: 'der' })).digest('hex'));
 if (!verify(null, payloadBuffer, createPublicKey(privateKey), signatureBuffer)) process.exit(2);
 
 const signature = signatureBuffer.toString('base64url');
