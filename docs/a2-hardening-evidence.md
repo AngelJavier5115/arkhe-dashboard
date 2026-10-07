@@ -85,6 +85,8 @@ debe ser rechazado.
 
 La rama tiene despliegues de preview de Vercel en estado `READY`.
 
+Para la prueba de frontera HTTP se configuró temporalmente una clave pública Ed25519 exclusiva de esta rama; no afecta a `main` ni a Production.
+
 También existe un PR draft:
 
 `A2: endurecer identidad de servicios investigadores`
