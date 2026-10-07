@@ -21,6 +21,8 @@ console.log('Firma local:', verify(null, payloadBuffer, createPublicKey(privateK
 console.log('FirmaHash local:', createHash('sha256').update(signatureBuffer).digest('hex'));
 console.log('PayloadHash local:', createHash('sha256').update(payloadBuffer).digest('hex'));
 console.log('PublicKeyFingerprint local:', createHash('sha256').update(createPublicKey(privateKey).export({ type: 'spki', format: 'der' })).digest('hex'));
+const openssl = spawnSync('openssl', ['pkey', '-in', 'atlas-a2-temp-private.pem', '-pubout', '-outform', 'DER'], { encoding: 'buffer' });
+if (openssl.status === 0) console.log('PublicKeyFingerprint OpenSSL:', createHash('sha256').update(openssl.stdout).digest('hex')); else console.log('OpenSSL derivation: FAIL');
 if (!verify(null, payloadBuffer, createPublicKey(privateKey), signatureBuffer)) process.exit(2);
 
 const signature = signatureBuffer.toString('base64url');
