@@ -1,0 +1,19 @@
+name: A.2 Provenance Audit
+
+on:
+  push:
+    branches:
+      - audit/a2-provenance-boundary
+  workflow_dispatch:
+
+jobs:
+  provenance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm install --no-audit --no-fund
+      - run: npm test
