@@ -400,6 +400,43 @@ async function actionCompleteInvocation(supabase, body) {
   return { intervencion, convocatoria: updatedConvocatoria };
 }
 
+
+async function actionFailInvocation(supabase, body) {
+  const convocatoriaId = uuid(body.convocatoria_id, 'convocatoria_id');
+  const investigadorId = uuid(body.investigador_id, 'investigador_id');
+
+  const { data: convocatoria, error: convocatoriaError } = await supabase
+    .from('convocatorias_ronda')
+    .select('*')
+    .eq('id', convocatoriaId)
+    .single();
+
+  if (convocatoriaError) throw convocatoriaError;
+  if (!convocatoria) throw new Error('Convocatoria no encontrada.');
+
+  if (convocatoria.investigador_id !== investigadorId) {
+    throw new Error('El investigador no coincide con la convocatoria.');
+  }
+
+  if (!['enviada', 'pendiente'].includes(convocatoria.estado)) {
+    return { convocatoria };
+  }
+
+  const { data, error } = await supabase
+    .from('convocatorias_ronda')
+    .update({
+      estado: 'error',
+      completed_at: new Date().toISOString()
+    })
+    .eq('id', convocatoriaId)
+    .select('*')
+    .single();
+
+  if (error) throw error;
+
+  return { convocatoria: data };
+}
+
 async function actionOpenDebate(supabase, body) {
   requireAngel(body.actor_id);
 
@@ -525,6 +562,9 @@ export default async function handler(req, res) {
         break;
       case 'completar_convocatoria':
         result = await actionCompleteInvocation(supabase, body);
+        break;
+      case 'fallar_convocatoria':
+        result = await actionFailInvocation(supabase, body);
         break;
       case 'abrir_debate':
         result = await actionOpenDebate(supabase, body);
