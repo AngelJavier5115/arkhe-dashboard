@@ -385,7 +385,20 @@ async function actionGetInvocation(supabase, body, serviceIdentity) {
     .order('created_at', { ascending: false })
     .limit(50);
 
-  if (memoriasErexport async function actionCompleteInvocation(supabase, body, serviceIdentity) {
+  if (memoriasError) throw memoriasError;
+
+  return {
+    convocatoria,
+    identidad: perfil,
+    memoria_identitaria: memorias ?? [],
+    ronda: context.ronda,
+    investigacion: context.investigacion,
+    foco_intervencion: context.foco_intervencion,
+    intervenciones: context.intervenciones
+  };
+}
+
+async function actionCompleteInvocation(supabase, body, serviceIdentity) {
   const investigadorId = requireBoundInvestigator(serviceIdentity);
   const rondaId = uuid(body.ronda_id, 'ronda_id');
   const convocatoriaId = uuid(body.convocatoria_id, 'convocatoria_id');
