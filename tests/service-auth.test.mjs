@@ -6,9 +6,10 @@ import { buildSigningPayload, expectedInvestigatorForService, verifyServiceSigna
 const ATLAS = '6deb143d-17c4-4d1a-a2d2-1fd9ddf2853f';
 const TEKTON = '656726d1-8209-4240-8169-a7434074609d';
 
-const { privateKey, publicKey } = generateKeyPairSync('ed25519');
-const publicKeyPem = publicKey.export({ type: 'spki', format: 'pem' });
-const privateKeyObject = privateKey;
+const atlasKeys = generateKeyPairSync('ed25519');
+const tektonKeys = generateKeyPairSync('ed25519');
+const publicKeyPem = atlasKeys.publicKey.export({ type: 'spki', format: 'pem' });
+const privateKeyObject = atlasKeys.privateKey;
 
 function signed({ serviceId = 'atlas', timestamp = Date.now(), nonce = 'nonce-a2', body = { action: 'completar_convocatoria' } } = {}) {
   const payload = buildSigningPayload({ serviceId, timestamp, nonce, body });
@@ -42,8 +43,9 @@ test('hardening: forged signature fails', () => {
 
 test('hardening: cross-service claim fails without Tekton private key', () => {
   const request = signed({ serviceId: 'tekton' });
+  const tektonSignature = sign(null, Buffer.from(buildSigningPayload(request), 'utf8'), tektonKeys.privateKey).toString('base64url');
   assert.equal(expectedInvestigatorForService(request.serviceId), TEKTON);
-  assert.equal(verifyServiceSignature({ ...request, publicKeyPem }), false);
+  assert.equal(verifyServiceSignature({ ...request, signature: tektonSignature, publicKeyPem }), false);
 });
 
 test('hardening: stale signed request fails freshness check', () => {
