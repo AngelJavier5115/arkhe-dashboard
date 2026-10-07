@@ -18,6 +18,7 @@ const payloadBuffer = Buffer.from(payload, 'utf8');
 const signatureBuffer = sign(null, payloadBuffer, privateKey);
 
 console.log('Firma local:', verify(null, payloadBuffer, createPublicKey(privateKey), signatureBuffer) ? 'OK' : 'FAIL');
+console.log('FirmaHash local:', createHash('sha256').update(signatureBuffer).digest('hex'));
 if (!verify(null, payloadBuffer, createPublicKey(privateKey), signatureBuffer)) process.exit(2);
 
 const signature = signatureBuffer.toString('base64url');
