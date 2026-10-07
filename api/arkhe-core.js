@@ -332,7 +332,7 @@ async function actionGetInvocation(supabase, body) {
   };
 }
 
-async function actionCompleteInvocation(supabase, body) {
+export async function actionCompleteInvocation(supabase, body) {
   const investigadorId = uuid(body.investigador_id, 'investigador_id');
   const rondaId = uuid(body.ronda_id, 'ronda_id');
   const convocatoriaId = uuid(body.convocatoria_id, 'convocatoria_id');
