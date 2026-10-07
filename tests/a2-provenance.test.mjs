@@ -40,7 +40,17 @@ const atlasConvocatoria = {
   estado: 'enviada'
 };
 
-test('A2-A: the intended investigator can complete its own convocatoria', async () => {
+const atlasService = {
+  serviceId: 'atlas',
+  investigadorId: IDS.atlas
+};
+
+const tektonService = {
+  serviceId: 'tekton',
+  investigadorId: IDS.tekton
+};
+
+test('A2-A: the authenticated Atlas service can complete its own convocatoria', async () => {
   const { supabase, calls } = fakeSupabase(atlasConvocatoria);
 
   await assert.doesNotReject(() =>
@@ -49,14 +59,14 @@ test('A2-A: the intended investigator can complete its own convocatoria', async 
       ronda_id: atlasConvocatoria.ronda_id,
       convocatoria_id: atlasConvocatoria.id,
       contenido: 'perspectiva de prueba'
-    })
+    }, atlasService)
   );
 
   assert.equal(calls.rpc, 1);
   assert.equal(calls.lastRpcArgs.p_investigador_id, IDS.atlas);
 });
 
-test('A2-B: a different investigator UUID cannot complete Atlas convocatoria', async () => {
+test('A2-B: a different logical investigator cannot complete Atlas convocatoria', async () => {
   const { supabase, calls } = fakeSupabase(atlasConvocatoria);
 
   await assert.rejects(
@@ -66,32 +76,31 @@ test('A2-B: a different investigator UUID cannot complete Atlas convocatoria', a
         ronda_id: atlasConvocatoria.ronda_id,
         convocatoria_id: atlasConvocatoria.id,
         contenido: 'intento de suplantación lógica'
-      }),
-    /no coincide con la convocatoria/i
+      }, atlasService),
+    /no coincide con la identidad del servicio/i
   );
 
   assert.equal(calls.rpc, 0);
 });
 
-test('A2-C: executor identity is not part of the current authorization decision', async () => {
+test('A2-C: a Tekton executor cannot submit Atlas identity even with a valid service signature', async () => {
   const { supabase, calls } = fakeSupabase(atlasConvocatoria);
 
-  // This models a Tekton service (or any other executor) that has a valid
-  // shared Core token and directly submits Atlas's UUID. The current Core
-  // function receives no caller/service identity to compare against it.
-  const body = {
-    caller_service: 'tekton',
-    investigador_id: IDS.atlas,
-    ronda_id: atlasConvocatoria.ronda_id,
-    convocatoria_id: atlasConvocatoria.id,
-    contenido: 'suplantación de ejecutor'
-  };
+  await assert.rejects(
+    () =>
+      actionCompleteInvocation(supabase, {
+        investigador_id: IDS.atlas,
+        ronda_id: atlasConvocatoria.ronda_id,
+        convocatoria_id: atlasConvocatoria.id,
+        contenido: 'suplantación de ejecutor'
+      }, tektonService),
+    /no coincide con la identidad del servicio/i
+  );
 
-  await assert.doesNotReject(() => actionCompleteInvocation(supabase, body));
-  assert.equal(calls.rpc, 1);
-  assert.equal(calls.lastRpcArgs.p_investigador_id, IDS.atlas);
+  assert.equal(calls.rpc, 0);
 });
-test('A2-D: model/provider provenance is caller-declared, not independently verified', async () => {
+
+test('A2-D: model/provider provenance remains an authenticated service assertion', async () => {
   const { supabase, calls } = fakeSupabase(atlasConvocatoria);
 
   await assert.doesNotReject(() =>
@@ -102,9 +111,27 @@ test('A2-D: model/provider provenance is caller-declared, not independently veri
       contenido: 'procedencia de modelo de prueba',
       modelo: 'fabricated-model-should-not-be-trusted',
       proveedor: 'fabricated-provider'
-    })
+    }, atlasService)
   );
 
   assert.equal(calls.lastRpcArgs.p_metadata.modelo, 'fabricated-model-should-not-be-trusted');
   assert.equal(calls.lastRpcArgs.p_metadata.proveedor, 'fabricated-provider');
+  assert.equal(calls.lastRpcArgs.p_metadata.servicio_autenticado, 'atlas');
+});
+
+test('A2-E: direct invocation without authenticated service identity is rejected', async () => {
+  const { supabase, calls } = fakeSupabase(atlasConvocatoria);
+
+  await assert.rejects(
+    () =>
+      actionCompleteInvocation(supabase, {
+        investigador_id: IDS.atlas,
+        ronda_id: atlasConvocatoria.ronda_id,
+        convocatoria_id: atlasConvocatoria.id,
+        contenido: 'sin identidad de ejecutor'
+      }),
+    /identidad de servicio requerida/i
+  );
+
+  assert.equal(calls.rpc, 0);
 });
