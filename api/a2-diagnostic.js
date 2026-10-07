@@ -27,6 +27,7 @@ export default function handler(req, res) {
     publicKeyLength: publicKeyPem.length,
     signatureLength: String(signature ?? '').length,
     signatureBytes: Buffer.from(signature ?? '', 'base64url').length,
+    signatureHash: createHash('sha256').update(Buffer.from(signature ?? '', 'base64url')).digest('hex'),
     localBodyIsObject: Boolean(req.body && typeof req.body === 'object')
   };
 
