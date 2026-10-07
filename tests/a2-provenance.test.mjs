@@ -91,3 +91,20 @@ test('A2-C: executor identity is not part of the current authorization decision'
   assert.equal(calls.rpc, 1);
   assert.equal(calls.lastRpcArgs.p_investigador_id, IDS.atlas);
 });
+test('A2-D: model/provider provenance is caller-declared, not independently verified', async () => {
+  const { supabase, calls } = fakeSupabase(atlasConvocatoria);
+
+  await assert.doesNotReject(() =>
+    actionCompleteInvocation(supabase, {
+      investigador_id: IDS.atlas,
+      ronda_id: atlasConvocatoria.ronda_id,
+      convocatoria_id: atlasConvocatoria.id,
+      contenido: 'procedencia de modelo de prueba',
+      modelo: 'fabricated-model-should-not-be-trusted',
+      proveedor: 'fabricated-provider'
+    })
+  );
+
+  assert.equal(calls.lastRpcArgs.p_metadata.modelo, 'fabricated-model-should-not-be-trusted');
+  assert.equal(calls.lastRpcArgs.p_metadata.proveedor, 'fabricated-provider');
+});
