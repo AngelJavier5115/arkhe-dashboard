@@ -1,4 +1,4 @@
-import { getAuthSupabase } from '../human-auth-config.js';
+import { getAuthSupabase, requireSameOrigin } from '../human-auth-config.js';
 import {
   getHumanSession,
   revokeHumanSession,
@@ -22,6 +22,7 @@ export default async function handler(req, res) {
     }
 
     if (req.method === 'POST') {
+      requireSameOrigin(req);
       await revokeHumanSession(req, supabase);
       res.setHeader('Set-Cookie', buildClearedSessionCookie());
       return res.status(200).json({ ok: true, logged_out: true });
