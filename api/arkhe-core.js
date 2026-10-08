@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { authenticateServiceRequest, expectedInvestigatorForService, MAX_CLOCK_SKEW_MS } from './service-auth.js';
 import { getAuthSupabase, getWebAuthnConfig, requireSameOrigin } from './human-auth-config.js';
-import { getHumanSession } from './human-session.js';
+import { getHumanSession, isRecentReauthentication } from './human-session.js';
 
 const ANGEL_ID = '2a003935-f248-442c-96fc-dcee29c4d41a';
 const INVESTIGATOR_IDS = {
@@ -55,13 +55,19 @@ function requireCoreToken(req) {
   }
 }
 
-async function requireHumanGovernor(req) {
+async function requireHumanGovernor(req, { requireRecentReauth = false } = {}) {
   requireSameOrigin(req);
 
   const authSupabase = getAuthSupabase();
   const session = await getHumanSession(req, authSupabase);
   if (!session) {
     const error = new Error('Se requiere una sesión humana autenticada.');
+    error.status = 401;
+    throw error;
+  }
+
+  if (requireRecentReauth && !isRecentReauthentication(session)) {
+    const error = new Error('Se requiere una reautenticación WebAuthn reciente.');
     error.status = 401;
     throw error;
   }
@@ -655,7 +661,7 @@ export default async function handler(req, res) {
 
     let humanIdentity = null;
     if (!serviceIdentity) {
-      humanIdentity = await requireHumanGovernor(req);
+      humanIdentity = await requireHumanGovernor(req, { requireRecentReauth: true });
       assertBodyActorMatches(body, humanIdentity);
     }
 
