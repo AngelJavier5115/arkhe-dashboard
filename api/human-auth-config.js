@@ -22,6 +22,17 @@ export function requireSameOrigin(req) {
   if (req.headers.origin !== expected) { const error = new Error('Origen no autorizado.'); error.status = 403; throw error; }
 }
 
+export function isBootstrapAllowed(req, now = Date.now()) {
+  const expected = process.env.ARKHE_AUTH_BOOTSTRAP_SECRET;
+  const expiresAt = Date.parse(process.env.ARKHE_AUTH_BOOTSTRAP_EXPIRES_AT ?? '');
+  return Boolean(
+    expected &&
+    Number.isFinite(expiresAt) &&
+    expiresAt > now &&
+    req.headers['x-arkhe-bootstrap'] === expected
+  );
+}
+
 export function getWebAuthnConfig() {
   return {
     rpID: requiredEnv('ARKHE_AUTH_RP_ID'),
