@@ -26,7 +26,7 @@ test('A4 adversarial: authentication challenge is one-use and freshness-bound', 
     assert.match(source, /is\('used_at', null\)/);
     assert.match(source, /expires_at/);
     assert.match(source, /update\(\{ used_at:/);
-    assert.match(source, /eq\('id', challenge\.id\)/);
+    assert.match(source, /eq\('id', id\)/);
   }
 });
 
