@@ -340,3 +340,24 @@ El resultado permitirá separar la evidencia de **identidad desplegada** de la e
 La fixture deberá eliminarse después del smoke test, haya éxito o fallo, para no dejar estado de laboratorio permanente en Core.
 
 **Estado: Preview preparado; smoke HTTP pendiente de ejecución.**
+
+
+### 10. Tekton desplegado → Core: smoke test real
+
+La instancia **Tekton PR #1** respondió al endpoint:
+
+`GET https://tekton-bot-pr-1.onrender.com/a2/smoke`
+
+La respuesta observada fue:
+
+```json
+{"ok":true,"service_id":"tekton","investigator_id":"656726d1-8209-4240-8169-a7434074609d","convocatoria_id":"997cd959-7811-4119-87b8-940b7ba031de"}
+```
+
+La respuesta confirma que la instancia desplegada de Tekton utilizó su cliente Core firmado y que el Core devolvió una convocatoria cuyo `investigador_id` corresponde al servicio autenticado como `tekton`.
+
+Al igual que en Atlas y Aletheia, el smoke test fue deliberadamente de lectura: **no ejecutó inferencia ni completó la convocatoria**.
+
+La convocatoria utilizada pertenecía a una fixture temporal creada para aislar esta propiedad. La fixture no representa evidencia del flujo de gobierno de creación de rondas.
+
+**Estado: DEMOSTRADO por instancia Render real → Core desplegado.**
