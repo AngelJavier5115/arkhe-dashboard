@@ -197,8 +197,8 @@ En el commit posterior se observó la ejecución de GitHub Actions completada co
 - `npm install --no-audit --no-fund`: **success**;
 - `npm test`: **success**;
 - job `provenance`: **success**;
-- ejecución por `push`: **success**;
-- ejecución por `pull_request`: **success**.
+- ejecución por `push`: **success** (run #65; posteriormente #63 también fue success);
+- ejecución por `pull_request`: **success** (run #66; posteriormente #64 también fue success).
 
 Estado: **DEMOSTRADO** para la ejecución observable del workflow en la rama.
 
