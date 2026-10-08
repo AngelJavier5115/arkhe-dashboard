@@ -66,11 +66,11 @@ Esto aporta evidencia desplegada de:
 
 ### Pendiente
 
-**Integración real de bots:** Atlas, Aletheia y Tekton en Render siguen en `main`. Cada rama `audit/a2-provenance-boundary` contiene únicamente el cambio de `arkhe-core-client.js` (1 commit por encima de `main`). Por tanto, los clientes firmados de auditoría todavía no están activos en las instancias normales.
+**Integración real de bots:** Atlas, Aletheia y Tekton en Render siguen en `main`. Cada rama `audit/a2-provenance-boundary` está 2 commits por encima de `main`: el cliente firmado `arkhe-core-client.js` y la captura de procedencia observada en `arkhe-round.js`. Por tanto, estos cambios todavía no están activos en las instancias normales.
 
-**Procedencia independiente del modelo/proveedor:** la firma vincula la declaración al servicio, pero todavía no prueba qué motor produjo realmente la inferencia.
+**Procedencia del modelo/proveedor:** ahora existe nivel `provider-response-attested`, que registra el modelo/versión y el ID de respuesta devueltos por cada proveedor. Esto es más fuerte que una declaración del servicio, pero todavía no constituye verificación independiente externa.
 
-**CI observable:** ya demostrado. Las ejecuciones finales de push y pull request terminaron correctamente; las más recientes son push run #65 y pull_request run #66.
+**CI observable:** ya demostrado. Las ejecuciones más recientes terminaron correctamente: push run #81 y pull_request run #82.
 
 **Higiene final de auditoría:** la clave pública temporal de Atlas en el preview ya fue restaurada, los endpoints/scripts diagnósticos temporales fueron eliminados y las llaves privadas temporales locales ya fueron borradas. Solo queda la gestión del bypass temporal de Vercel; su operación de revocación disponible requiere el secreto y no se expone ni se vuelve a solicitar en el chat.
 
@@ -94,9 +94,10 @@ La evidencia debe conservar únicamente identificadores no sensibles, resultados
 1. Revocar/rotar el bypass temporal de Vercel y borrar las llaves privadas temporales locales de Codespace.
 2. Revisar diff completo de A.2 y verificar que `main` siga intacto.
 3. Obtener una ejecución observable de CI y registrar su resultado.
-4. Revisar la integración desplegada de los clientes firmados de los tres bots.
-5. Mantener separado como trabajo posterior la procedencia independiente de modelo/proveedor y definir su evidencia.
-6. Solo después evaluar el cierre formal de la auditoría y una eventual integración a `main`.
+4. Revisar la activación desplegada de los clientes firmados y de la captura `provider-response-attested` en los tres bots.
+5. Mantener separado como trabajo posterior la verificación independiente externa de modelo/proveedor.
+6. Definir la política operativa de retención/limpieza de nonces expirados.
+7. Solo después evaluar el cierre formal de la auditoría y una eventual integración a `main`.
 
 ## Principio metodológico Arkhé
 
