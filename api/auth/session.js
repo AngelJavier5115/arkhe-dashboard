@@ -17,6 +17,7 @@ export default async function handler(req, res) {
         ...(session ? {
           investigator_id: session.investigatorId,
           expires_at: session.expiresAt,
+          reauthenticated_at: session.reauthenticatedAt,
         } : {}),
       });
     }
