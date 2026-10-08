@@ -119,6 +119,56 @@ test('A2-D: model/provider provenance remains an authenticated service assertion
   assert.equal(calls.lastRpcArgs.p_metadata.servicio_autenticado, 'atlas');
 });
 
+test('A2-F: provider-response-attested provenance requires observed model and provider response id', async () => {
+  const { supabase, calls } = fakeSupabase(atlasConvocatoria);
+
+  await assert.doesNotReject(() =>
+    actionCompleteInvocation(supabase, {
+      investigador_id: IDS.atlas,
+      ronda_id: atlasConvocatoria.ronda_id,
+      convocatoria_id: atlasConvocatoria.id,
+      contenido: 'procedencia observada de prueba',
+      modelo: 'openai/gpt-oss-20b',
+      proveedor: 'OpenRouter',
+      metadata: {
+        modelo_solicitado: 'openai/gpt-oss-20b',
+        modelo_observado: 'openai/gpt-oss-20b',
+        id_respuesta_proveedor: 'response-test-123',
+        nivel_procedencia: 'provider-response-attested'
+      }
+    }, atlasService)
+  );
+
+  assert.equal(calls.lastRpcArgs.p_metadata.modelo_observado, 'openai/gpt-oss-20b');
+  assert.equal(calls.lastRpcArgs.p_metadata.id_respuesta_proveedor, 'response-test-123');
+  assert.equal(calls.lastRpcArgs.p_metadata.nivel_procedencia, 'provider-response-attested');
+});
+
+test('A2-G: provider-response-attested provenance rejects model mismatch', async () => {
+  const { supabase, calls } = fakeSupabase(atlasConvocatoria);
+
+  await assert.rejects(
+    () =>
+      actionCompleteInvocation(supabase, {
+        investigador_id: IDS.atlas,
+        ronda_id: atlasConvocatoria.ronda_id,
+        convocatoria_id: atlasConvocatoria.id,
+        contenido: 'procedencia inconsistente de prueba',
+        modelo: 'openai/gpt-oss-120b',
+        proveedor: 'OpenRouter',
+        metadata: {
+          modelo_solicitado: 'openai/gpt-oss-20b',
+          modelo_observado: 'openai/gpt-oss-20b',
+          id_respuesta_proveedor: 'response-test-456',
+          nivel_procedencia: 'provider-response-attested'
+        }
+      }, atlasService),
+    /provider-response-attested.*inconsistente|inconsistente.*provider-response-attested/i
+  );
+
+  assert.equal(calls.rpc, 0);
+});
+
 test('A2-E: direct invocation without authenticated service identity is rejected', async () => {
   const { supabase, calls } = fakeSupabase(atlasConvocatoria);
 
