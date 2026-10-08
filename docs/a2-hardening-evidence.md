@@ -174,9 +174,9 @@ Las tres instancias normales de Render continúan desplegadas desde `main`. Las 
 
 Las ramas de auditoría ahora incluyen además un modo seguro para Pull Request Preview: cuando Render marca `IS_PULL_REQUEST=true`, el bot no inicia sesión en Discord. Un endpoint `/a2/smoke` solo se habilita con `ARKHE_A2_PREVIEW=1` y requiere un `ARKHE_A2_CONVOCATORIA_ID` explícito para probar el cliente firmado contra el Core de auditoría.
 
-Los tres PR de los bots fueron creados como Draft con el marcador `[render preview]`. Los servicios Render actuales tienen `pullRequestPreviewsEnabled=no`, por lo que **la instancia aislada todavía no ha sido creada** y la activación del preview es la siguiente acción de infraestructura.
+Los tres PR de los bots se usaron para crear instancias temporales de Preview y demostrar el smoke firmado. Después de la prueba, los previews fueron deprovisionados.
 
-Por tanto, **no se afirma todavía que las instancias normales desplegadas de los tres bots estén usando esta firma Ed25519**.
+Por tanto, **no se afirma que las instancias normales desplegadas de los tres bots estén usando esta firma Ed25519**: continúan en `main` hasta un corte de producción separado.
 
 ### Procedencia del modelo/proveedor: mejora provider-response-attested
 
@@ -258,11 +258,15 @@ Con la suite HTTP actual ya existe evidencia desplegada para:
 
 Las contrapruebas HTTP de autenticación, integridad, separación de servicios, anti-replay, frescura temporal y clave incorrecta ya tienen evidencia desplegada.
 
-Para el cierre definitivo todavía deberá revisarse la activación desplegada de los clientes firmados de los tres bots, la procedencia independiente externa de modelo/proveedor y la política operativa de retención/limpieza de nonces expirados.
+Para A.2, la frontera de identidad de servicio queda **técnicamente cerrada**. No se ha realizado la activación productiva; ésta es un corte separado y requiere revisión/autorización explícita.
+
+La procedencia independiente externa de modelo/proveedor permanece como trabajo posterior, no como evidencia faltante de la frontera de identidad.
+
+La política operativa de retención/limpieza de nonces expirados ya quedó implementada mediante Supabase Cron con retención adicional de 24 horas.
 
 La limpieza de credenciales temporales de esta fase ya se completó: el bypass temporal de Vercel fue revocado, las previews de Render fueron deprovisionadas, las llaves privadas temporales del Codespace fueron eliminadas, la fixture de Tekton fue eliminada y los endpoints/bypass headers específicos de prueba fueron retirados de las ramas de los bots.
 
-Hasta completar esas evidencias, `main` permanece congelado respecto de este endurecimiento.
+Por tanto, A.2 puede declararse **CERRADA TÉCNICAMENTE** sin fusionar todavía: `main` permanece congelado hasta el corte coordinado de producción.
 
 
 ### 7. Atlas desplegado → Core: smoke test real
@@ -393,3 +397,16 @@ Por tanto:
 - código Production: permanece en `main` sin el endurecimiento A2.
 
 La activación sigue requiriendo una integración coordinada de Core + los tres bots.
+
+
+### 13. Política operativa de nonces implementada
+
+Se habilitó Supabase Cron y quedó activo el job `arkhe-cleanup-expired-core-request-nonces`.
+
+Horario configurado: `17 3 * * *`.
+
+La función `arkhe_cleanup_expired_core_request_nonces()` elimina únicamente nonces con más de 24 horas desde `expires_at`. La ventana criptográfica del request continúa siendo de 5 minutos.
+
+La retención adicional de 24 horas conserva una pequeña ventana forense sin afectar la protección anti-replay.
+
+El job está activo en producción y la función fue ejecutada manualmente para verificar su comportamiento; los 9 nonces expirados observados en ese momento eran más recientes que la ventana de retención y, por diseño, permanecieron almacenados.
