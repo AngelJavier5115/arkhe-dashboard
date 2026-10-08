@@ -66,7 +66,7 @@ Esto aporta evidencia desplegada de:
 
 ### Pendiente
 
-**Integración real de bots:** Atlas, Aletheia y Tekton en Render siguen en `main`. Cada rama `audit/a2-provenance-boundary` está 2 commits por encima de `main`: el cliente firmado `arkhe-core-client.js` y la captura de procedencia observada en `arkhe-round.js`. Por tanto, estos cambios todavía no están activos en las instancias normales.
+**Integración real de bots:** Atlas, Aletheia y Tekton en Render siguen en `main`. Sus ramas de auditoría contienen el cliente firmado, la captura de procedencia observada y ahora un guard seguro para Pull Request Preview que desactiva el login de Discord. Los PR de los tres bots están abiertos como Draft con `[render preview]`; Render tiene los previews de servicio desactivados actualmente, así que falta crear la instancia aislada.
 
 **Procedencia del modelo/proveedor:** ahora existe nivel `provider-response-attested`, que registra el modelo/versión y el ID de respuesta devueltos por cada proveedor. Atlas además captura metadata de routing de OpenRouter cuando utiliza esa ruta y correlaciona la generación con `convocatoriaId` mediante `trace_id`. Esto es más fuerte que una declaración del servicio, pero todavía no constituye verificación independiente externa. El marco A/B/C de evidencia quedó documentado en `docs/provider-provenance.md`.
 
@@ -94,7 +94,7 @@ La evidencia debe conservar únicamente identificadores no sensibles, resultados
 1. Revocar/rotar el bypass temporal de Vercel y borrar las llaves privadas temporales locales de Codespace.
 2. Revisar diff completo de A.2 y verificar que `main` siga intacto.
 3. Obtener una ejecución observable de CI y registrar su resultado.
-4. Revisar la activación desplegada de los clientes firmados y de la captura `provider-response-attested` en los tres bots.
+4. Habilitar Pull Request Previews en los tres servicios Render y usar las instancias aisladas para verificar `/a2/smoke` contra el Core de auditoría.
 5. Mantener separado como trabajo posterior la verificación independiente externa de modelo/proveedor.
 6. Definir la política operativa de retención/limpieza de nonces expirados.
 7. Solo después evaluar el cierre formal de la auditoría y una eventual integración a `main`.
