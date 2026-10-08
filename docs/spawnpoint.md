@@ -94,7 +94,7 @@ La evidencia debe conservar únicamente identificadores no sensibles, resultados
 1. Revocar/rotar el bypass temporal de Vercel y borrar las llaves privadas temporales locales de Codespace.
 2. Revisar diff completo de A.2 y verificar que `main` siga intacto.
 3. Obtener una ejecución observable de CI y registrar su resultado.
-4. Ejecutar `/a2/smoke` en `tekton-bot PR #1`; registrar el resultado y eliminar la fixture temporal #10 inmediatamente después.
+4. Eliminar la fixture temporal de Tekton (ronda #10 y convocatoria asociada), verificar que no queden artefactos temporales en Core y registrar la limpieza.
 5. Mantener separado como trabajo posterior la verificación independiente externa de modelo/proveedor.
 6. Definir la política operativa de retención/limpieza de nonces expirados.
 7. Solo después evaluar el cierre formal de la auditoría y una eventual integración a `main`.
