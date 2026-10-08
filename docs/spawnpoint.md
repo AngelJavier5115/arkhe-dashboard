@@ -94,7 +94,7 @@ La evidencia debe conservar únicamente identificadores no sensibles, resultados
 1. Revocar/rotar el bypass temporal de Vercel y borrar las llaves privadas temporales locales de Codespace.
 2. Revisar diff completo de A.2 y verificar que `main` siga intacto.
 3. Obtener una ejecución observable de CI y registrar su resultado.
-4. Habilitar Pull Request Previews en los tres servicios Render y usar las instancias aisladas para verificar `/a2/smoke` contra el Core de auditoría.
+4. Habilitar/usarse la Preview de Atlas ya creada y repetir el mismo smoke controlado para Aletheia y Tekton.
 5. Mantener separado como trabajo posterior la verificación independiente externa de modelo/proveedor.
 6. Definir la política operativa de retención/limpieza de nonces expirados.
 7. Solo después evaluar el cierre formal de la auditoría y una eventual integración a `main`.
