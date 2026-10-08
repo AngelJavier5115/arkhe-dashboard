@@ -292,3 +292,24 @@ Esta evidencia es más fuerte que la prueba anterior desde Codespace porque el e
 No se ejecutó una inferencia de modelo ni se completó una convocatoria en este smoke test; la operación fue deliberadamente de lectura para aislar la propiedad de autenticación.
 
 **Estado: DEMOSTRADO por instancia Render real → Core desplegado.**
+
+
+### 8. Aletheia desplegada → Core: smoke test real
+
+La instancia **Aletheia PR #1** fue creada en Render desde la rama `audit/a2-provenance-boundary`.
+
+Se ejecutó desde el navegador:
+
+`GET https://aletheia-bot-pr-1.onrender.com/a2/smoke`
+
+La respuesta observada fue:
+
+```json
+{"ok":true,"service_id":"aletheia","investigator_id":"122483a9-5012-46ce-a328-5bdb08b4de01","convocatoria_id":"58ad8a15-e3cd-4791-b574-d452c1eca14a"}
+```
+
+La ruta `/a2/smoke` llama al `coreRequest()` firmado del propio servicio. La respuesta confirma que **Aletheia, como instancia desplegada, autenticó su identidad de servicio ante el Core y recuperó una convocatoria cuya identidad corresponde a Aletheia**.
+
+La operación fue deliberadamente de lectura; no se ejecutó inferencia ni se completó una convocatoria.
+
+**Estado: DEMOSTRADO por instancia Render real → Core desplegado.**
