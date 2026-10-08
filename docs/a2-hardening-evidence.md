@@ -174,13 +174,30 @@ Las tres instancias normales de Render continúan desplegadas desde `main`. Las 
 
 Por tanto, **no se afirma todavía que las instancias normales desplegadas de los tres bots estén usando esta firma Ed25519**.
 
-### Procedencia independiente del modelo/proveedor
+### Procedencia del modelo/proveedor: mejora provider-response-attested
 
-La firma demuestra que la declaración `modelo/proveedor` provino del servicio autenticado y que no fue alterada durante el transporte.
+Se revisaron los tres clientes investigadores contra la semántica actual de sus APIs de inferencia.
 
-Eso **no demuestra por sí solo** que el modelo o proveedor declarado sea realmente el motor que ejecutó la inferencia.
+**Atlas** realiza sus llamadas mediante el cliente OpenAI, con OpenRouter como ruta cuando `OPENROUTER_API_KEY` está presente. En la rama de auditoría ahora captura `respuesta.model` y `respuesta.id` devueltos por la API, en lugar de persistir únicamente el modelo solicitado. OpenRouter documenta que el atributo `model` de la respuesta permite saber qué modelo fue usado por el router. Cuando la ruta es OpenRouter, el proveedor upstream concreto puede variar y queda explícitamente sin afirmar. citeturn176258search7turn176258search1
 
-Estado: **PENDIENTE**.
+**Aletheia** usa Google Gemini y ahora captura `response.modelVersion` y `response.responseId`, ambos campos de salida definidos por la API de Gemini para identificar la versión del modelo utilizada y la respuesta concreta. citeturn808613search2
+
+**Tekton** usa Groq mediante el cliente OpenAI y ahora captura `respuesta.model` y `respuesta.id` devueltos por la Responses API de Groq. La documentación de Groq define ambos campos en la respuesta. citeturn808613search0turn808613search1
+
+Los tres clientes envían al Core:
+
+- `modelo_solicitado`;
+- `modelo_observado`;
+- `id_respuesta_proveedor`;
+- `nivel_procedencia: provider-response-attested`.
+
+El Core fue endurecido para aceptar este nivel únicamente cuando el modelo observado y el identificador de respuesta están presentes y `body.modelo` coincide con `metadata.modelo_observado`.
+
+Esto cambia la calidad de la evidencia: ya no registramos únicamente lo que el servicio **pidió** usar, sino también lo que el **proveedor devolvió como modelo/versión y respuesta**.
+
+Sin embargo, esta evidencia sigue siendo **atestación del servicio basada en la respuesta del proveedor**. El servicio todavía puede falsificar externamente esos campos antes de firmarlos si fuera malicioso. Por ello, no se considera una prueba criptográficamente independiente de la inferencia.
+
+**Estado: DEMOSTRADO como provider-response-attested; procedencia independiente externa: PENDIENTE.**
 
 ### CI de GitHub
 
@@ -233,6 +250,6 @@ Con la suite HTTP actual ya existe evidencia desplegada para:
 
 Las contrapruebas HTTP de autenticación, integridad, separación de servicios, anti-replay, frescura temporal y clave incorrecta ya tienen evidencia desplegada.
 
-Para el cierre definitivo todavía deberá revisarse la integración real de los clientes de los tres bots, la procedencia independiente de modelo/proveedor, el resultado observable de CI y la limpieza de las credenciales temporales utilizadas en la auditoría.
+Para el cierre definitivo todavía deberá revisarse la activación desplegada de los clientes firmados de los tres bots, la procedencia independiente externa de modelo/proveedor, la limpieza del bypass temporal de Vercel y la política operativa de retención/limpieza de nonces expirados.
 
 Hasta completar esas evidencias, `main` permanece congelado respecto de este endurecimiento.
