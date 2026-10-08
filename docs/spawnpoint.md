@@ -66,13 +66,13 @@ Esto aporta evidencia desplegada de:
 
 ### Pendiente
 
-**Integración real de bots:** las instancias normales de Atlas, Aletheia y Tekton en Render siguen en `main`; Atlas PR #1 y Aletheia PR #1 ya demostraron el smoke firmado en previews aislados. Sus ramas de auditoría contienen el cliente firmado, la captura de procedencia observada y ahora un guard seguro para Pull Request Preview que desactiva el login de Discord. Los PR de los tres bots están abiertos como Draft con `[render preview]`; Render tiene los previews de servicio desactivados actualmente, así que falta crear la instancia aislada.
+**Integración real de bots:** las instancias normales de Atlas, Aletheia y Tekton en Render siguen en `main`. Atlas, Aletheia y Tekton demostraron el smoke firmado en previews aislados, y esas previews ya fueron deprovisionadas después de la prueba. Los clientes firmados y la captura de procedencia observada siguen en las ramas de auditoría; todavía no están activos en las instancias normales.
 
 **Procedencia del modelo/proveedor:** ahora existe nivel `provider-response-attested`, que registra el modelo/versión y el ID de respuesta devueltos por cada proveedor. Atlas además captura metadata de routing de OpenRouter cuando utiliza esa ruta y correlaciona la generación con `convocatoriaId` mediante `trace_id`. Esto es más fuerte que una declaración del servicio, pero todavía no constituye verificación independiente externa. El marco A/B/C de evidencia quedó documentado en `docs/provider-provenance.md`.
 
-**CI observable:** ya demostrado. Las ejecuciones más recientes terminaron correctamente: push run #81 y pull_request run #82.
+**CI observable:** ya demostrado. Core y los tres bots tienen ejecuciones finales de push y pull_request en `success`.
 
-**Higiene final de auditoría:** la clave pública temporal de Atlas en el preview ya fue restaurada, los endpoints/scripts diagnósticos temporales fueron eliminados y las llaves privadas temporales locales ya fueron borradas. Solo queda la gestión del bypass temporal de Vercel; su operación de revocación disponible requiere el secreto y no se expone ni se vuelve a solicitar en el chat.
+**Higiene final de auditoría:** completada para los recursos temporales utilizados: clave pública temporal restaurada, endpoints/scripts diagnósticos eliminados, llaves privadas temporales borradas, fixture de Tekton eliminada y bypass temporal de Vercel revocado.
 
 **Retención de nonces:** existe expiración lógica, pero todavía debe definirse una limpieza/retención operativa de filas expiradas.
 
@@ -94,7 +94,7 @@ La evidencia debe conservar únicamente identificadores no sensibles, resultados
 1. Revocar/rotar el bypass temporal de Vercel y borrar las llaves privadas temporales locales de Codespace.
 2. Revisar diff completo de A.2 y verificar que `main` siga intacto.
 3. Obtener una ejecución observable de CI y registrar su resultado.
-4. Eliminar la fixture temporal de Tekton (ronda #10 y convocatoria asociada), verificar que no queden artefactos temporales en Core y registrar la limpieza.
+4. Revisar el diff completo de A2 en Core y los tres bots y comprobar que no quede código o configuración específica de la prueba temporal.
 5. Mantener separado como trabajo posterior la verificación independiente externa de modelo/proveedor.
 6. Definir la política operativa de retención/limpieza de nonces expirados.
 7. Solo después evaluar el cierre formal de la auditoría y una eventual integración a `main`.
