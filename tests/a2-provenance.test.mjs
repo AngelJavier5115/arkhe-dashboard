@@ -100,7 +100,7 @@ test('A2-C: a Tekton executor cannot submit Atlas identity even with a valid ser
   assert.equal(calls.rpc, 0);
 });
 
-test('A2-D: model/provider provenance remains an authenticated service assertion', async () => {
+test('A2-D: without provider-response-attested metadata, model/provider remain service declarations', async () => {
   const { supabase, calls } = fakeSupabase(atlasConvocatoria);
 
   await assert.doesNotReject(() =>
