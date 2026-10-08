@@ -1,6 +1,6 @@
 import { generateRegistrationOptions } from '@simplewebauthn/server';
 import { getAuthSupabase, getWebAuthnConfig, requireSameOrigin, isBootstrapAllowed, ANGEL_ID, WEBAUTHN_TTL_MS } from '../../human-auth-config.js';
-import { getHumanSession } from '../../human-session.js';
+import { getHumanSession, isRecentReauthentication } from '../../human-session.js';
 
 
 export default async function handler(req, res) {
@@ -24,6 +24,10 @@ export default async function handler(req, res) {
     const initialBootstrap = !session && count === 0 && isBootstrapAllowed(req);
     if (!session && !initialBootstrap) {
       return res.status(401).json({ ok: false, error: 'Se requiere una sesión humana válida o el bootstrap inicial controlado.' });
+    }
+
+    if (session && !isRecentReauthentication(session)) {
+      return res.status(401).json({ ok: false, error: 'Se requiere una reautenticación WebAuthn reciente para registrar otra credencial.' });
     }
 
     const { rpID, rpName } = getWebAuthnConfig();
