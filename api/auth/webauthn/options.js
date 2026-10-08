@@ -12,6 +12,14 @@ export default async function handler(req, res) {
     const supabase = getAuthSupabase();
     const { rpID } = getWebAuthnConfig();
 
+    await supabase
+      .from('arkhe_webauthn_challenges')
+      .delete()
+      .eq('investigator_id', ANGEL_ID)
+      .eq('purpose', 'authentication')
+      .is('used_at', null)
+      .lt('expires_at', new Date().toISOString());
+
     const { data: credentials, error } = await supabase
       .from('arkhe_human_credentials')
       .select('credential_id, transports')
