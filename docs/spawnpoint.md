@@ -72,7 +72,7 @@ Esto aporta evidencia desplegada de:
 
 **CI observable:** existe el workflow, pero falta una ejecución observable que pueda contabilizarse como evidencia.
 
-**Higiene final de auditoría:** restaurar la clave pública temporal del preview, revocar/rotar el bypass temporal de Vercel y borrar llaves privadas temporales locales.
+**Higiene final de auditoría:** la clave pública temporal de Atlas en el preview ya fue restaurada; todavía falta revocar/rotar el bypass temporal de Vercel y borrar las llaves privadas temporales locales.
 
 **Retención de nonces:** existe expiración lógica, pero todavía debe definirse una limpieza/retención operativa de filas expiradas.
 
@@ -91,7 +91,7 @@ La evidencia debe conservar únicamente identificadores no sensibles, resultados
 
 ## Siguiente punto de reanudación
 
-1. Hacer limpieza de credenciales temporales de la auditoría.
+1. Revocar/rotar el bypass temporal de Vercel y borrar las llaves privadas temporales locales de Codespace.
 2. Revisar diff completo de A.2 y verificar que `main` siga intacto.
 3. Obtener una ejecución observable de CI y registrar su resultado.
 4. Revisar la integración desplegada de los clientes firmados de los tres bots.
