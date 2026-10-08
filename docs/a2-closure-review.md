@@ -182,7 +182,24 @@ La activación debe ser un corte coordinado y separado, con revisión final del 
 - evolución futura del Registro de Fuentes Arkhé;
 - futura integración con IA locales por investigador.
 
-## 9. Regla de Arkhé
+## 9. Verificación final posterior a la revisión cruzada
+
+Después de la revisión cruzada se corrigió una regresión en el parser/helper HTTP de los tres cuerpos investigadores (Atlas, Aletheia y Tekton). Los nuevos commits fueron:
+
+- Atlas: `66ae55070f18fdc8ce8f577e599b9c5580cfa844`
+- Aletheia: `c1f38998fca0d3921e6c580ab5cba9b93bbd91`
+- Tekton: `3ad270def000f4565c533ae5bd783f910e92b844`
+
+Cada uno obtuvo **push CI = success** y **pull request CI = success** sobre la misma rama de auditoría.
+
+Posteriormente se actualizó la documentación del Core para registrar explícitamente la frontera restante de gobierno humano. Los commits documentales finales también obtuvieron **push CI = success** y **pull request CI = success**:
+
+- `d38da062e70d6ea1beaaa97f667f0e9512595091`
+- `8d8f115db81ae72a4456c75f69244b3650bcdd8b`
+
+La revisión final confirma que estos cambios documentales no modifican la implementación de A.2 ni RLS.
+
+## 10. Regla de Arkhé
 
 Cerrar una pregunta no significa cerrar todo el sistema.
 
