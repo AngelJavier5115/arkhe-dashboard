@@ -2,11 +2,6 @@ import { verifyRegistrationResponse } from '@simplewebauthn/server';
 import { getAuthSupabase, getWebAuthnConfig, requireSameOrigin, ANGEL_ID } from '../../human-auth-config.js';
 import { getHumanSession } from '../../human-session.js';
 
-function bootstrapAllowed(req) {
-  const expected = process.env.ARKHE_AUTH_BOOTSTRAP_SECRET;
-  const provided = req.headers['x-arkhe-bootstrap'];
-  return Boolean(expected && provided && provided === expected);
-}
 
 function decodeClientData(response) {
   try {
@@ -80,7 +75,7 @@ export default async function handler(req, res) {
 
     if (countError) throw countError;
 
-    const initialBootstrap = !session && count === 0 && bootstrapAllowed(req);
+    const initialBootstrap = !session && count === 0 && isBootstrapAllowed(req);
     if (!session && !initialBootstrap) {
       return res.status(401).json({ ok: false, error: 'Se requiere sesión humana o bootstrap inicial controlado.' });
     }
