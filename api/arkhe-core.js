@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { authenticateServiceRequest, expectedInvestigatorForService, MAX_CLOCK_SKEW_MS } from './service-auth.js';
 
 const ANGEL_ID = '2a003935-f248-442c-96fc-dcee29c4d41a';
 const INVESTIGATOR_IDS = {
@@ -22,6 +23,12 @@ const allowedInvocationTypes = new Set([
   'debate',
   'replica',
   'aclaracion'
+]);
+
+const SERVICE_INVESTIGATOR_ACTIONS = new Set([
+  'obtener_convocatoria',
+  'completar_convocatoria',
+  'fallar_convocatoria'
 ]);
 
 function json(res, status, body) {
@@ -79,6 +86,59 @@ async function readBody(req) {
     });
     req.on('error', reject);
   });
+}
+
+async function authenticateInvestigatorRequest(req, body, supabase) {
+  req.__arkheSignedBody = body;
+
+  const identity = authenticateServiceRequest(req);
+  const expectedInvestigatorId = expectedInvestigatorForService(identity.serviceId);
+
+  if (!identity.verified || !expectedInvestigatorId) {
+    const error = new Error('Firma de servicio inválida.');
+    error.status = 401;
+    throw error;
+  }
+
+  if (identity.investigadorId !== expectedInvestigatorId) {
+    const error = new Error('La identidad del servicio no está vinculada al investigador esperado.');
+    error.status = 403;
+    throw error;
+  }
+
+  const expiresAt = new Date(
+    Number(identity.timestamp) + MAX_CLOCK_SKEW_MS
+  ).toISOString();
+
+  const { error } = await supabase
+    .from('core_request_nonces')
+    .insert({
+      nonce: identity.nonce,
+      service_id: identity.serviceId,
+      request_timestamp: identity.timestamp,
+      expires_at: expiresAt
+    });
+
+  if (error) {
+    if (error.code === '23505') {
+      const replay = new Error('Nonce ya utilizado.');
+      replay.status = 401;
+      throw replay;
+    }
+    throw error;
+  }
+
+  return identity;
+}
+
+function requireBoundInvestigator(serviceIdentity) {
+  if (!serviceIdentity?.investigadorId) {
+    const error = new Error('Identidad de servicio requerida.');
+    error.status = 401;
+    throw error;
+  }
+
+  return serviceIdentity.investigadorId;
 }
 
 async function assertParticipants(supabase, investigacionId, participantIds) {
@@ -284,7 +344,8 @@ async function actionCreateInvocations(supabase, body) {
   };
 }
 
-async function actionGetInvocation(supabase, body) {
+async function actionGetInvocation(supabase, body, serviceIdentity) {
+  const investigadorId = requireBoundInvestigator(serviceIdentity);
   const convocatoriaId = uuid(body.convocatoria_id, 'convocatoria_id');
 
   const { data: convocatoria, error } = await supabase
@@ -295,6 +356,11 @@ async function actionGetInvocation(supabase, body) {
 
   if (error) throw error;
   if (!convocatoria) throw new Error('Convocatoria no encontrada.');
+  if (convocatoria.investigador_id !== investigadorId) {
+    const forbidden = new Error('La convocatoria no pertenece al investigador autenticado.');
+    forbidden.status = 403;
+    throw forbidden;
+  }
   if (convocatoria.estado !== 'enviada' && convocatoria.estado !== 'pendiente') {
     throw new Error('La convocatoria ya no está disponible para ejecución.');
   }
@@ -332,10 +398,16 @@ async function actionGetInvocation(supabase, body) {
   };
 }
 
-async function actionCompleteInvocation(supabase, body) {
-  const investigadorId = uuid(body.investigador_id, 'investigador_id');
+async function actionCompleteInvocation(supabase, body, serviceIdentity) {
+  const investigadorId = requireBoundInvestigator(serviceIdentity);
   const rondaId = uuid(body.ronda_id, 'ronda_id');
   const convocatoriaId = uuid(body.convocatoria_id, 'convocatoria_id');
+
+  if (body.investigador_id && body.investigador_id !== investigadorId) {
+    const forbidden = new Error('El investigador declarado no coincide con la identidad del servicio.');
+    forbidden.status = 403;
+    throw forbidden;
+  }
 
   const { data: convocatoria, error: convocatoriaError } = await supabase
     .from('convocatorias_ronda')
@@ -352,12 +424,33 @@ async function actionCompleteInvocation(supabase, body) {
     throw new Error('La convocatoria ya fue completada o cancelada.');
   }
 
+  const incomingMetadata = body.metadata ?? {};
+  const provenanceLevel = incomingMetadata.nivel_procedencia ?? null;
+
+  if (provenanceLevel === 'provider-response-attested') {
+    const observedModel = typeof incomingMetadata.modelo_observado === 'string'
+      ? incomingMetadata.modelo_observado.trim()
+      : '';
+    const providerResponseId = typeof incomingMetadata.id_respuesta_proveedor === 'string'
+      ? incomingMetadata.id_respuesta_proveedor.trim()
+      : '';
+
+    if (!observedModel || !providerResponseId || body.modelo !== observedModel || !body.proveedor) {
+      const provenanceError = new Error(
+        'La evidencia provider-response-attested es inconsistente o está incompleta.'
+      );
+      provenanceError.status = 400;
+      throw provenanceError;
+    }
+  }
+
   const metadata = {
-    ...(body.metadata ?? {}),
+    ...incomingMetadata,
     convocatoria_id: convocatoriaId,
     identidad_version: body.identidad_version ?? null,
     modelo: body.modelo ?? null,
-    proveedor: body.proveedor ?? null
+    proveedor: body.proveedor ?? null,
+    servicio_autenticado: serviceIdentity.serviceId
   };
 
   const { data: intervencion, error: intervencionError } = await supabase.rpc(
@@ -392,9 +485,16 @@ async function actionCompleteInvocation(supabase, body) {
 }
 
 
-async function actionFailInvocation(supabase, body) {
+
+async function actionFailInvocation(supabase, body, serviceIdentity) {
+  const investigadorId = requireBoundInvestigator(serviceIdentity);
   const convocatoriaId = uuid(body.convocatoria_id, 'convocatoria_id');
-  const investigadorId = uuid(body.investigador_id, 'investigador_id');
+
+  if (body.investigador_id && body.investigador_id !== investigadorId) {
+    const forbidden = new Error('El investigador declarado no coincide con la identidad del servicio.');
+    forbidden.status = 403;
+    throw forbidden;
+  }
 
   const { data: convocatoria, error: convocatoriaError } = await supabase
     .from('convocatorias_ronda')
@@ -404,9 +504,10 @@ async function actionFailInvocation(supabase, body) {
 
   if (convocatoriaError) throw convocatoriaError;
   if (!convocatoria) throw new Error('Convocatoria no encontrada.');
-
   if (convocatoria.investigador_id !== investigadorId) {
-    throw new Error('El investigador no coincide con la convocatoria.');
+    const forbidden = new Error('El investigador no coincide con la identidad del servicio.');
+    forbidden.status = 403;
+    throw forbidden;
   }
 
   if (!['enviada', 'pendiente'].includes(convocatoria.estado)) {
@@ -522,13 +623,12 @@ async function actionRoundState(supabase, body, state) {
 
 export default async function handler(req, res) {
   try {
-    requireCoreToken(req);
-
     if (req.method === 'GET') {
+      requireCoreToken(req);
       return json(res, 200, {
         ok: true,
         core: 'arkhe-rounds',
-        version: '0.2',
+        version: '0.3',
         status: 'active'
       });
     }
@@ -539,6 +639,13 @@ export default async function handler(req, res) {
 
     const body = await readBody(req);
     const supabase = getSupabase();
+    const serviceIdentity = SERVICE_INVESTIGATOR_ACTIONS.has(body.action)
+      ? await authenticateInvestigatorRequest(req, body, supabase)
+      : null;
+
+    if (!serviceIdentity) {
+      requireCoreToken(req);
+    }
 
     let result;
     switch (body.action) {
@@ -549,13 +656,13 @@ export default async function handler(req, res) {
         result = await actionCreateInvocations(supabase, body);
         break;
       case 'obtener_convocatoria':
-        result = await actionGetInvocation(supabase, body);
+        result = await actionGetInvocation(supabase, body, serviceIdentity);
         break;
       case 'completar_convocatoria':
-        result = await actionCompleteInvocation(supabase, body);
+        result = await actionCompleteInvocation(supabase, body, serviceIdentity);
         break;
       case 'fallar_convocatoria':
-        result = await actionFailInvocation(supabase, body);
+        result = await actionFailInvocation(supabase, body, serviceIdentity);
         break;
       case 'abrir_debate':
         result = await actionOpenDebate(supabase, body);
@@ -582,3 +689,6 @@ export default async function handler(req, res) {
     });
   }
 }
+
+
+export { actionCompleteInvocation };
