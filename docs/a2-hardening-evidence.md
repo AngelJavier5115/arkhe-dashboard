@@ -168,7 +168,9 @@ Estado: **DEMOSTRADO por HTTP**.
 
 ### Integración de los bots en despliegue
 
-Los clientes firmados de Atlas, Aletheia y Tekton existen en sus respectivas ramas de auditoría, y las variables privadas fueron preparadas en Render. Sin embargo, los servicios normales de Render todavía siguen `main`.
+Los clientes firmados de Atlas, Aletheia y Tekton existen en sus respectivas ramas de auditoría. Cada rama está 1 commit por encima de su `main` correspondiente y el único archivo modificado es `arkhe-core-client.js`.
+
+Las tres instancias normales de Render continúan desplegadas desde `main`. Las variables `ARKHE_SERVICE_ID` y `ARKHE_SERVICE_PRIVATE_KEY` ya fueron preparadas en Render, pero el código firmado todavía no está activo en esas instancias.
 
 Por tanto, **no se afirma todavía que las instancias normales desplegadas de los tres bots estén usando esta firma Ed25519**.
 
