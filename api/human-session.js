@@ -12,6 +12,21 @@ export function hashSessionToken(token) {
   return crypto.createHash('sha256').update(token, 'utf8').digest('hex');
 }
 
+export function parseCookies(header = '') {
+  return Object.fromEntries(
+    header
+      .split(';')
+      .map(part => part.trim())
+      .filter(Boolean)
+      .map(part => {
+        const index = part.indexOf('=');
+        return index < 0
+          ? [part, '']
+          : [part.slice(0, index), decodeURIComponent(part.slice(index + 1))];
+      })
+  );
+}
+
 export function activeSession(row, now = Date.now()) {
   return Boolean(
     row &&
@@ -59,4 +74,45 @@ export async function createHumanSession(supabase) {
   if (error) throw error;
 
   return { token, expiresAt };
+}
+
+export async function getHumanSession(req, supabase) {
+  const cookies = parseCookies(req.headers.cookie ?? '');
+  const token = cookies[SESSION_COOKIE];
+  if (!token) return null;
+
+  const { data, error } = await supabase
+    .from('arkhe_human_sessions')
+    .select('id, investigator_id, expires_at, revoked_at')
+    .eq('session_hash', hashSessionToken(token))
+    .maybeSingle();
+
+  if (error) throw error;
+  if (!activeSession(data)) return null;
+
+  await supabase
+    .from('arkhe_human_sessions')
+    .update({ last_seen_at: new Date().toISOString() })
+    .eq('id', data.id)
+    .eq('investigator_id', ANGEL_ID)
+    .is('revoked_at', null);
+
+  return {
+    id: data.id,
+    investigatorId: ANGEL_ID,
+    expiresAt: data.expires_at,
+  };
+}
+
+export async function revokeHumanSession(req, supabase) {
+  const cookies = parseCookies(req.headers.cookie ?? '');
+  const token = cookies[SESSION_COOKIE];
+  if (!token) return;
+
+  await supabase
+    .from('arkhe_human_sessions')
+    .update({ revoked_at: new Date().toISOString() })
+    .eq('session_hash', hashSessionToken(token))
+    .eq('investigator_id', ANGEL_ID)
+    .is('revoked_at', null);
 }
