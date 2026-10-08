@@ -7,6 +7,8 @@ export default async function handler(req, res) {
       return res.status(405).json({ ok: false, error: 'Método no permitido.' });
     }
 
+    requireSameOrigin(req);
+
     const supabase = getAuthSupabase();
     const { rpID } = await import('../../human-auth-config.js').then(mod => mod.getWebAuthnConfig());
 
