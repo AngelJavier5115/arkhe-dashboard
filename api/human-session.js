@@ -43,3 +43,20 @@ export function buildClearedSessionCookie() {
     'Max-Age=0',
   ].join('; ');
 }
+
+export async function createHumanSession(supabase) {
+  const token = randomSessionToken();
+  const expiresAt = new Date(Date.now() + SESSION_TTL_SECONDS * 1000).toISOString();
+
+  const { error } = await supabase
+    .from('arkhe_human_sessions')
+    .insert({
+      session_hash: hashSessionToken(token),
+      investigator_id: ANGEL_ID,
+      expires_at: expiresAt,
+    });
+
+  if (error) throw error;
+
+  return { token, expiresAt };
+}
