@@ -1,5 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { authenticateServiceRequest, expectedInvestigatorForService, MAX_CLOCK_SKEW_MS } from './service-auth.js';
+import { getAuthSupabase, getWebAuthnConfig } from './human-auth-config.js';
+import { getHumanSession } from './human-session.js';
 
 const ANGEL_ID = '2a003935-f248-442c-96fc-dcee29c4d41a';
 const INVESTIGATOR_IDS = {
@@ -53,9 +55,29 @@ function requireCoreToken(req) {
   }
 }
 
-function requireAngel(actorId) {
-  if (actorId !== ANGEL_ID) {
-    const error = new Error('Solo Ángel puede gobernar una ronda.');
+async function requireHumanGovernor(req) {
+  const { origin } = getWebAuthnConfig();
+  const requestOrigin = req.headers.origin;
+  if (requestOrigin && requestOrigin !== origin) {
+    const error = new Error('Origen no autorizado para una acción de gobierno.');
+    error.status = 403;
+    throw error;
+  }
+
+  const authSupabase = getAuthSupabase();
+  const session = await getHumanSession(req, authSupabase);
+  if (!session) {
+    const error = new Error('Se requiere una sesión humana autenticada.');
+    error.status = 401;
+    throw error;
+  }
+
+  return session.investigatorId;
+}
+
+function assertBodyActorMatches(body, actorId) {
+  if (body.actor_id && body.actor_id !== actorId) {
+    const error = new Error('actor_id no coincide con la identidad humana autenticada.');
     error.status = 403;
     throw error;
   }
@@ -210,8 +232,7 @@ async function loadRoundContext(supabase, rondaId) {
   };
 }
 
-async function actionStartRound(supabase, body) {
-  requireAngel(body.actor_id);
+async function actionStartRound(supabase, body, actorId) {
 
   const participantIds = ids(body.participantes);
 
@@ -271,7 +292,7 @@ async function actionStartRound(supabase, body) {
     ...(body.contexto ?? {}),
     ...(nodoContexto ? { nodo: nodoContexto } : {}),
     gobernanza: {
-      controlador: ANGEL_ID,
+      controlador: actorId,
       participantes_iniciales: participantIds
     }
   };
@@ -284,7 +305,7 @@ async function actionStartRound(supabase, body) {
       tipo: body.tipo ?? 'consulta',
       estado: 'abierta',
       pregunta: body.pregunta ?? investigacion.pregunta ?? '',
-      iniciada_por: ANGEL_ID,
+      iniciada_por: actorId,
       destinatario_id: participantIds.length === 1 ? participantIds[0] : null,
       ronda_padre_id: body.ronda_padre_id ?? null,
       fase_id: body.fase_id ?? null,
@@ -299,8 +320,7 @@ async function actionStartRound(supabase, body) {
   return { ronda, investigacion, participantes: participantIds };
 }
 
-async function actionCreateInvocations(supabase, body) {
-  requireAngel(body.actor_id);
+async function actionCreateInvocations(supabase, body, actorId) {
 
   const rondaId = uuid(body.ronda_id, 'ronda_id');
   const participantIds = ids(body.investigadores);
@@ -319,7 +339,7 @@ async function actionCreateInvocations(supabase, body) {
 
   const invocations = participantIds.map(investigadorId => ({
     ronda_id: rondaId,
-    convocada_por: ANGEL_ID,
+    convocada_por: actorId,
     investigador_id: investigadorId,
     tipo_convocatoria: tipo,
     foco_intervencion_id: body.foco_intervencion_id ?? context.ronda.foco_intervencion_id ?? null,
@@ -529,8 +549,7 @@ async function actionFailInvocation(supabase, body, serviceIdentity) {
   return { convocatoria: data };
 }
 
-async function actionOpenDebate(supabase, body) {
-  requireAngel(body.actor_id);
+async function actionOpenDebate(supabase, body, actorId) {
 
   const focusId = uuid(body.foco_intervencion_id, 'foco_intervencion_id');
   const participants = ids(body.investigadores);
@@ -565,7 +584,6 @@ async function actionOpenDebate(supabase, body) {
   }
 
   const created = await actionStartRound(supabase, {
-    actor_id: ANGEL_ID,
     investigacion_id: parentContext.ronda.investigacion_id,
     tipo: 'debate',
     pregunta: body.pregunta ?? body.instruccion_humana ?? parentContext.ronda.pregunta,
@@ -577,7 +595,7 @@ async function actionOpenDebate(supabase, body) {
       foco_intervencion_id: focusId,
       ronda_padre_id: parentRoundId
     }
-  });
+  }, actorId);
 
   const convocated = await actionCreateInvocations(supabase, {
     actor_id: ANGEL_ID,
@@ -586,7 +604,7 @@ async function actionOpenDebate(supabase, body) {
     tipo_convocatoria: 'debate',
     foco_intervencion_id: focusId,
     instruccion_humana: body.instruccion_humana ?? null
-  });
+  }, actorId);
 
   return {
     ...created,
@@ -595,8 +613,7 @@ async function actionOpenDebate(supabase, body) {
   };
 }
 
-async function actionRoundState(supabase, body, state) {
-  requireAngel(body.actor_id);
+async function actionRoundState(supabase, body, state, actorId) {
 
   const roundId = uuid(body.ronda_id, 'ronda_id');
   const patch = { estado: state };
@@ -643,17 +660,19 @@ export default async function handler(req, res) {
       ? await authenticateInvestigatorRequest(req, body, supabase)
       : null;
 
+    let humanIdentity = null;
     if (!serviceIdentity) {
-      requireCoreToken(req);
+      humanIdentity = await requireHumanGovernor(req);
+      assertBodyActorMatches(body, humanIdentity);
     }
 
     let result;
     switch (body.action) {
       case 'iniciar_ronda':
-        result = await actionStartRound(supabase, body);
+        result = await actionStartRound(supabase, body, humanIdentity);
         break;
       case 'convocar_investigadores':
-        result = await actionCreateInvocations(supabase, body);
+        result = await actionCreateInvocations(supabase, body, humanIdentity);
         break;
       case 'obtener_convocatoria':
         result = await actionGetInvocation(supabase, body, serviceIdentity);
@@ -665,16 +684,16 @@ export default async function handler(req, res) {
         result = await actionFailInvocation(supabase, body, serviceIdentity);
         break;
       case 'abrir_debate':
-        result = await actionOpenDebate(supabase, body);
+        result = await actionOpenDebate(supabase, body, humanIdentity);
         break;
       case 'pausar_ronda':
-        result = await actionRoundState(supabase, body, 'pausada');
+        result = await actionRoundState(supabase, body, 'pausada', humanIdentity);
         break;
       case 'cerrar_ronda':
-        result = await actionRoundState(supabase, body, 'cerrada');
+        result = await actionRoundState(supabase, body, 'cerrada', humanIdentity);
         break;
       case 'cancelar_ronda':
-        result = await actionRoundState(supabase, body, 'cancelada');
+        result = await actionRoundState(supabase, body, 'cancelada', humanIdentity);
         break;
       default:
         throw new Error('Acción Core desconocida.');
