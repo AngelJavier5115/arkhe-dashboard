@@ -3,8 +3,10 @@ import assert from 'node:assert/strict';
 import { requireSameOrigin } from '../api/human-auth-config.js';
 
 test('A4: cookie-authenticated mutation requires the configured origin', () => {
-  const previous = process.env.ARKHE_AUTH_ORIGIN;
+  const previousOrigin = process.env.ARKHE_AUTH_ORIGIN;
+  const previousRpId = process.env.ARKHE_AUTH_RP_ID;
   process.env.ARKHE_AUTH_ORIGIN = 'https://arkhe.example';
+  process.env.ARKHE_AUTH_RP_ID = 'arkhe.example';
 
   try {
     assert.doesNotThrow(() =>
@@ -21,7 +23,10 @@ test('A4: cookie-authenticated mutation requires the configured origin', () => {
       error => error?.status === 403
     );
   } finally {
-    if (previous === undefined) delete process.env.ARKHE_AUTH_ORIGIN;
-    else process.env.ARKHE_AUTH_ORIGIN = previous;
+    if (previousOrigin === undefined) delete process.env.ARKHE_AUTH_ORIGIN;
+    else process.env.ARKHE_AUTH_ORIGIN = previousOrigin;
+
+    if (previousRpId === undefined) delete process.env.ARKHE_AUTH_RP_ID;
+    else process.env.ARKHE_AUTH_RP_ID = previousRpId;
   }
 });
