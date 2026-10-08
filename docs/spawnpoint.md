@@ -64,11 +64,11 @@ Esto aporta evidencia desplegada de:
 
 **Autorización Core:** una petición válida de Atlas obtiene su convocatoria real desde Core.
 
-### Pendiente
+### Pendiente / posterior a A2
 
 **Integración real de bots:** las instancias normales de Atlas, Aletheia y Tekton en Render siguen en `main`. Atlas, Aletheia y Tekton demostraron el smoke firmado en previews aislados, y esas previews ya fueron deprovisionadas. Los clientes firmados y la captura de procedencia observada siguen en las ramas de auditoría; todavía no están activos en las instancias normales.
 
-**Procedencia del modelo/proveedor:** ahora existe nivel `provider-response-attested`, que registra el modelo/versión y el ID de respuesta devueltos por cada proveedor. Atlas además captura metadata de routing de OpenRouter cuando utiliza esa ruta y correlaciona la generación con `convocatoriaId` mediante `trace_id`. Esto es más fuerte que una declaración del servicio, pero todavía no constituye verificación independiente externa. El marco A/B/C de evidencia quedó documentado en `docs/provider-provenance.md`.
+**Procedencia del modelo/proveedor:** ahora existe nivel `provider-response-attested`, implementado en los tres clientes y validado estáticamente por CI. Atlas además captura metadata de routing de OpenRouter cuando utiliza esa ruta y correlaciona la generación con `convocatoriaId` mediante `trace_id`. Esto es más fuerte que una declaración del servicio, pero todavía no constituye verificación independiente externa ni se ha ejecutado aquí una inferencia runtime posterior al cambio. El marco A/B/C de evidencia quedó documentado en `docs/provider-provenance.md`.
 
 **CI observable:** ya demostrado. Core y los tres bots tienen ejecuciones finales de push y pull_request en `success`.
 
@@ -107,7 +107,7 @@ No declarar resuelto lo que no haya sido demostrado.
 
 El objetivo de esta auditoría no es confirmar que nuestra implementación “parece correcta”, sino intentar romper la frontera y conservar tanto los éxitos como los fallos y límites.
 
-**Estado del checkpoint:** A.2 **CERRADA TÉCNICAMENTE** en la frontera de identidad de servicio; no fusionada. `main` congelado hasta el corte productivo autorizado.
+**Estado del checkpoint:** A.2 **CERRADA TÉCNICAMENTE** en la frontera de identidad de servicio; no fusionada. La retención de nonces está operativa. `main` congelado hasta el corte productivo autorizado.
 
 ## Continuidad
 
