@@ -22,6 +22,7 @@ async function jsonFetch(path, init = {}) {
 export default function HumanAuthPanel() {
   const [authenticated, setAuthenticated] = useState(false);
   const [expiresAt, setExpiresAt] = useState(null);
+  const [reauthenticatedAt, setReauthenticatedAt] = useState(null);
   const [bootstrapSecret, setBootstrapSecret] = useState('');
   const [status, setStatus] = useState('');
   const [busy, setBusy] = useState(false);
@@ -30,6 +31,7 @@ export default function HumanAuthPanel() {
     const result = await jsonFetch('/api/auth/session');
     setAuthenticated(Boolean(result.authenticated));
     setExpiresAt(result.expires_at ?? null);
+    setReauthenticatedAt(result.reauthenticated_at ?? null);
   };
 
   useEffect(() => {
@@ -89,6 +91,7 @@ export default function HumanAuthPanel() {
       await jsonFetch('/api/auth/session', { method: 'POST' });
       setAuthenticated(false);
       setExpiresAt(null);
+      setReauthenticatedAt(null);
       setStatus('Sesión cerrada.');
     } catch (error) {
       setStatus(error?.message ?? 'No fue posible cerrar la sesión.');
@@ -150,9 +153,24 @@ export default function HumanAuthPanel() {
 
       {authenticated && (
         <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-          <span className="text-xs text-slate-400">
-            Sesión válida hasta {expiresAt ? new Date(expiresAt).toLocaleString() : 'fecha no disponible'}.
-          </span>
+          <div className="text-xs text-slate-400">
+            <div>
+              Sesión válida hasta {expiresAt ? new Date(expiresAt).toLocaleString() : 'fecha no disponible'}.
+            </div>
+            <div className="mt-1">
+              Última reautenticación: {reauthenticatedAt ? new Date(reauthenticatedAt).toLocaleString() : 'pendiente'}.
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={login}
+              disabled={busy}
+              className="inline-flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs font-medium text-slate-200 hover:border-indigo-500 disabled:opacity-50"
+            >
+              <LogIn className="w-4 h-4" />
+              Reautenticar
+            </button>
           <button
             type="button"
             onClick={logout}
@@ -161,7 +179,8 @@ export default function HumanAuthPanel() {
           >
             <LogOut className="w-4 h-4" />
             Cerrar sesión
-          </button>
+            </button>
+          </div>
         </div>
       )}
 
