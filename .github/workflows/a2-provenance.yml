@@ -1,22 +1,23 @@
-name: A.2 Provenance Audit
+name: A.4 Human Auth Audit
 
 on:
   push:
     branches:
-      - audit/a2-provenance-boundary
+      - audit/a4-human-auth
   pull_request:
     branches:
       - main
   workflow_dispatch:
 
 jobs:
-  provenance:
+  human-auth:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-      - run: npm run build
+          cache: npm
       - run: npm install --no-audit --no-fund
+      - run: npm run build
       - run: npm test
