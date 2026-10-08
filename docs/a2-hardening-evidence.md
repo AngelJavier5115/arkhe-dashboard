@@ -377,3 +377,18 @@ Después de completar los smoke tests de Atlas, Aletheia y Tekton:
 - los últimos workflows de `push` y `pull_request` de Atlas, Aletheia y Tekton terminaron en `success`.
 
 La evidencia desplegada de los tres investigadores permanece en este documento; las credenciales y recursos temporales no.
+
+
+### 12. Preparación de corte a Production
+
+Como preparación no funcional para una futura integración, se registraron en Vercel Production las tres claves públicas Ed25519 correspondientes a Atlas, Aletheia y Tekton.
+
+Estas variables son públicas por diseño y no contienen claves privadas. Su presencia por sí sola **no activa la nueva autenticación**, porque el código de `main` aún no consume `service-auth.js).
+
+Por tanto:
+
+- Core Production: claves públicas preparadas;
+- Render Production: variables privadas de servicio preparadas anteriormente;
+- código Production: permanece en `main` sin el endurecimiento A2.
+
+La activación sigue requiriendo una integración coordinada de Core + los tres bots.
