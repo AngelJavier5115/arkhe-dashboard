@@ -188,9 +188,19 @@ El workflow de la rama existe y está configurado para ejecutarse en:
 - pull requests hacia `main`;
 - ejecución manual.
 
-La ejecución de CI debe considerarse válida únicamente cuando exista una ejecución observable del workflow con sus resultados. No se reutiliza como evidencia una simple existencia del archivo YAML.
+Se observó una primera ejecución fallida en `setup-node`. La causa operativa fue la configuración de `cache: npm` sin archivo de lockfile disponible; se eliminó esa dependencia del workflow.
 
-Estado: **PENDIENTE**.
+La siguiente ejecución llegó correctamente a `npm install`, y después `npm test` inicialmente falló porque `actionCompleteInvocation` no estaba exportada desde `api/arkhe-core.js`. Se corrigió la exportación para permitir el test directo de la acción.
+
+En el commit posterior se observó la ejecución de GitHub Actions completada con:
+
+- `npm install --no-audit --no-fund`: **success**;
+- `npm test`: **success**;
+- job `provenance`: **success**;
+- ejecución por `push`: **success**;
+- ejecución por `pull_request`: **success**.
+
+Estado: **DEMOSTRADO** para la ejecución observable del workflow en la rama.
 
 ## Estado metodológico
 
