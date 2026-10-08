@@ -374,7 +374,8 @@ Después de completar los smoke tests de Atlas, Aletheia y Tekton:
 - se revocó el bypass temporal de automatización de Vercel usado únicamente para atravesar Deployment Protection durante la auditoría;
 - se eliminaron las llaves privadas temporales del Codespace;
 - se eliminaron `/a2/smoke` y el header de bypass temporal de Vercel del código de los tres bots;
-- los últimos workflows de `push` y `pull_request` de Atlas, Aletheia y Tekton terminaron en `success`.
+- los últimos workflows de `push` y `pull_request` de Atlas, Aletheia y Tekton terminaron en `success`;
+- el harness HTTP one-shot de la auditoría fue eliminado después de completar la suite, porque apuntaba a una fixture temporal ya destruida.
 
 La evidencia desplegada de los tres investigadores permanece en este documento; las credenciales y recursos temporales no.
 
