@@ -13,7 +13,7 @@ const nonce = randomUUID();
 const canonicalBody = JSON.stringify(body);
 const bodyHash = createHash('sha256').update(canonicalBody, 'utf8').digest('hex');
 const payload = [serviceId, timestamp, nonce, bodyHash].join('.');
-const privateKey = createPrivateKey(readFileSync('atlas-a2-temp-private.pem'));
+const privateKey = createPrivateKey(readFileSync('atlas-a2-clean-private.pem'));
 const payloadBuffer = Buffer.from(payload, 'utf8');
 const signatureBuffer = sign(null, payloadBuffer, privateKey);
 
@@ -21,7 +21,7 @@ console.log('Firma local:', verify(null, payloadBuffer, createPublicKey(privateK
 console.log('FirmaHash local:', createHash('sha256').update(signatureBuffer).digest('hex'));
 console.log('PayloadHash local:', createHash('sha256').update(payloadBuffer).digest('hex'));
 console.log('PublicKeyFingerprint local:', createHash('sha256').update(createPublicKey(privateKey).export({ type: 'spki', format: 'der' })).digest('hex'));
-const openssl = spawnSync('openssl', ['pkey', '-in', 'atlas-a2-temp-private.pem', '-pubout', '-outform', 'DER'], { encoding: 'buffer' });
+const openssl = spawnSync('openssl', ['pkey', '-in', 'atlas-a2-clean-private.pem', '-pubout', '-outform', 'DER'], { encoding: 'buffer' });
 if (openssl.status === 0) console.log('PublicKeyFingerprint OpenSSL:', createHash('sha256').update(openssl.stdout).digest('hex')); else console.log('OpenSSL derivation: FAIL');
 if (!verify(null, payloadBuffer, createPublicKey(privateKey), signatureBuffer)) process.exit(2);
 
