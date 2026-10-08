@@ -25,9 +25,32 @@ test('A4 adversarial: authentication challenge is one-use and freshness-bound', 
   for (const source of [verify, registerVerify]) {
     assert.match(source, /is\('used_at', null\)/);
     assert.match(source, /expires_at/);
+    assert.match(source, /reserveChallengeAttempt\(supabase, challenge\.id\)/);
+    assert.match(source, /arkhe_webauthn_reserve_attempt/);
     assert.match(source, /update\(\{ used_at:/);
     assert.match(source, /eq\('id', id\)/);
   }
+});
+
+test('A4 adversarial: challenge issuance is throttled and attempts are bounded', () => {
+  const migration = read('supabase/migrations/20261008143000_harden_a4_human_auth_schema.sql');
+  const authOptions = read('api/auth/webauthn/options.js');
+  const registerOptions = read('api/auth/webauthn/register-options.js');
+
+  assert.match(migration, /arkhe_webauthn_active_challenge_unique_idx/);
+  assert.match(migration, /arkhe_webauthn_reserve_attempt/);
+  assert.match(authOptions, /status\(429\)/);
+  assert.match(registerOptions, /status\(429\)/);
+});
+
+test('A4 adversarial: human auth schema binds data to investigator_id', () => {
+  const migration = read('supabase/migrations/20261008130000_create_human_auth_tables.sql');
+  const corrective = read('supabase/migrations/20261008143000_harden_a4_human_auth_schema.sql');
+
+  assert.match(corrective, /rename column user_id to investigator_id/i);
+  assert.match(corrective, /alter column investigator_id set not null/i);
+  assert.match(migration, /user_id/);
+  assert.match(corrective, /investigator_id/);
 });
 
 test('A4 adversarial: revoked credentials cannot authenticate', () => {
