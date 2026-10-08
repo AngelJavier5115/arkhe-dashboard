@@ -1,5 +1,5 @@
 import { verifyRegistrationResponse } from '@simplewebauthn/server';
-import { getAuthSupabase, getWebAuthnConfig, requireSameOrigin, ANGEL_ID } from '../../human-auth-config.js';
+import { getAuthSupabase, getWebAuthnConfig, requireSameOrigin, isBootstrapAllowed, ANGEL_ID } from '../../human-auth-config.js';
 import { getHumanSession } from '../../human-session.js';
 
 
