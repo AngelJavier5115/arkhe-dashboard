@@ -1,5 +1,5 @@
 import { verifyAuthenticationResponse } from '@simplewebauthn/server';
-import { getAuthSupabase, getWebAuthnConfig, ANGEL_ID } from '../../human-auth-config.js';
+import { getAuthSupabase, getWebAuthnConfig, requireSameOrigin, ANGEL_ID } from '../../human-auth-config.js';
 import { createHumanSession, buildSessionCookie } from '../../human-session.js';
 
 function decodeClientData(response) {
@@ -56,6 +56,8 @@ export default async function handler(req, res) {
     if (req.method !== 'POST') {
       return res.status(405).json({ ok: false, error: 'Método no permitido.' });
     }
+
+    requireSameOrigin(req);
 
     const response = req.body;
     if (!response?.id || !response?.response) {
