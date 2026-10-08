@@ -47,10 +47,11 @@ test('A4 adversarial: human auth schema binds data to investigator_id', () => {
   const migration = read('supabase/migrations/20261008130000_create_human_auth_tables.sql');
   const corrective = read('supabase/migrations/20261008143000_harden_a4_human_auth_schema.sql');
 
+  assert.doesNotMatch(migration, /user_id/);
+  assert.match(migration, /investigator_id/);
+  assert.match(migration, /attempts integer not null default 0/);
   assert.match(corrective, /rename column user_id to investigator_id/i);
   assert.match(corrective, /alter column investigator_id set not null/i);
-  assert.match(migration, /user_id/);
-  assert.match(corrective, /investigator_id/);
 });
 
 test('A4 adversarial: revoked credentials cannot authenticate', () => {
