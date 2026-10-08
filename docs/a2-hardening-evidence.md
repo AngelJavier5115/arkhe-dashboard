@@ -170,7 +170,11 @@ Estado: **DEMOSTRADO por HTTP**.
 
 Los clientes firmados de Atlas, Aletheia y Tekton existen en sus respectivas ramas de auditoría. Cada rama está 1 commit por encima de su `main` correspondiente y el único archivo modificado es `arkhe-core-client.js`.
 
-Las tres instancias normales de Render continúan desplegadas desde `main`. Las variables `ARKHE_SERVICE_ID` y `ARKHE_SERVICE_PRIVATE_KEY` ya fueron preparadas en Render, pero el código firmado todavía no está activo en esas instancias.
+Las tres instancias normales de Render continúan desplegadas desde `main`. Las variables `ARKHE_SERVICE_ID` y `ARKHE_SERVICE_PRIVATE_KEY` ya fueron preparadas en Render.
+
+Las ramas de auditoría ahora incluyen además un modo seguro para Pull Request Preview: cuando Render marca `IS_PULL_REQUEST=true`, el bot no inicia sesión en Discord. Un endpoint `/a2/smoke` solo se habilita con `ARKHE_A2_PREVIEW=1` y requiere un `ARKHE_A2_CONVOCATORIA_ID` explícito para probar el cliente firmado contra el Core de auditoría.
+
+Los tres PR de los bots fueron creados como Draft con el marcador `[render preview]`. Los servicios Render actuales tienen `pullRequestPreviewsEnabled=no`, por lo que **la instancia aislada todavía no ha sido creada** y la activación del preview es la siguiente acción de infraestructura.
 
 Por tanto, **no se afirma todavía que las instancias normales desplegadas de los tres bots estén usando esta firma Ed25519**.
 
@@ -222,6 +226,8 @@ En ejecuciones posteriores y tras completar los cambios de esta auditoría se ob
 - ejecución por `pull_request`: **success** (run #82).
 
 Estado: **DEMOSTRADO** para la ejecución observable del workflow en la rama.
+
+Los workflows A2 de los tres repositorios de bots también terminaron en **success** para `push` y `pull_request`, validando sintaxis de `index.js`, `arkhe-round.js` y `arkhe-core-client.js`.
 
 ## Estado metodológico
 
