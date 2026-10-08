@@ -35,6 +35,20 @@ async function findUnusedChallenge(supabase, challenge) {
   return data;
 }
 
+async function reserveChallengeAttempt(supabase, id) {
+  const { data, error } = await supabase.rpc('arkhe_webauthn_reserve_attempt', {
+    p_challenge_id: id,
+    p_max_attempts: 5,
+  });
+
+  if (error) throw error;
+  if (!data) {
+    const limited = new Error('Límite de intentos alcanzado para este challenge.');
+    limited.status = 429;
+    throw limited;
+  }
+}
+
 async function consumeChallenge(supabase, id) {
   const { data, error } = await supabase
     .from('arkhe_webauthn_challenges')
@@ -96,6 +110,8 @@ export default async function handler(req, res) {
     if (!verification.verified || !verification.registrationInfo) {
       return res.status(401).json({ ok: false, error: 'Registro WebAuthn no verificado.' });
     }
+
+    await reserveChallengeAttempt(supabase, challenge.id);
 
     await consumeChallenge(supabase, challenge.id);
 
