@@ -227,7 +227,7 @@ En ejecuciones posteriores y tras completar los cambios de esta auditoría se ob
 
 Estado: **DEMOSTRADO** para la ejecución observable del workflow en la rama.
 
-Los workflows A2 de los tres repositorios de bots también terminaron en **success** para `push` y `pull_request`, validando sintaxis de `index.js`, `arkhe-round.js` y `arkhe-core-client.js`. Las ejecuciones más recientes tras el guard de Pull Request Preview fueron success en Atlas, Aletheia y Tekton.
+Los workflows A2 de los tres repositorios de bots también terminaron en **success** para `push` y `pull_request`, validando sintaxis de `index.js`, `arkhe-round.js` y `arkhe-core-client.js`. Las ejecuciones más recientes de Atlas, Aletheia y Tekton tras la limpieza también terminaron en **success**.
 
 ## Estado metodológico
 
@@ -258,7 +258,9 @@ Con la suite HTTP actual ya existe evidencia desplegada para:
 
 Las contrapruebas HTTP de autenticación, integridad, separación de servicios, anti-replay, frescura temporal y clave incorrecta ya tienen evidencia desplegada.
 
-Para el cierre definitivo todavía deberá revisarse la activación desplegada de los clientes firmados de los tres bots, la procedencia independiente externa de modelo/proveedor, la limpieza del bypass temporal de Vercel y la política operativa de retención/limpieza de nonces expirados.
+Para el cierre definitivo todavía deberá revisarse la activación desplegada de los clientes firmados de los tres bots, la procedencia independiente externa de modelo/proveedor y la política operativa de retención/limpieza de nonces expirados.
+
+La limpieza de credenciales temporales de esta fase ya se completó: el bypass temporal de Vercel fue revocado, las previews de Render fueron deprovisionadas, las llaves privadas temporales del Codespace fueron eliminadas, la fixture de Tekton fue eliminada y los endpoints/bypass headers específicos de prueba fueron retirados de las ramas de los bots.
 
 Hasta completar esas evidencias, `main` permanece congelado respecto de este endurecimiento.
 
@@ -361,3 +363,17 @@ Al igual que en Atlas y Aletheia, el smoke test fue deliberadamente de lectura: 
 La convocatoria utilizada pertenecía a una fixture temporal creada para aislar esta propiedad. La fixture no representa evidencia del flujo de gobierno de creación de rondas.
 
 **Estado: DEMOSTRADO por instancia Render real → Core desplegado.**
+
+
+### 11. Limpieza posterior a las pruebas desplegadas
+
+Después de completar los smoke tests de Atlas, Aletheia y Tekton:
+
+- se eliminaron la ronda #10 y la convocatoria fixture de Tekton; una consulta posterior confirmó `0` filas restantes para ambas;
+- se retiraron los marcadores `[render preview]` de los tres PR, por lo que Render deprovisionó las tres instancias temporales;
+- se revocó el bypass temporal de automatización de Vercel usado únicamente para atravesar Deployment Protection durante la auditoría;
+- se eliminaron las llaves privadas temporales del Codespace;
+- se eliminaron `/a2/smoke` y el header de bypass temporal de Vercel del código de los tres bots;
+- los últimos workflows de `push` y `pull_request` de Atlas, Aletheia y Tekton terminaron en `success`.
+
+La evidencia desplegada de los tres investigadores permanece en este documento; las credenciales y recursos temporales no.
