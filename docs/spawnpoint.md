@@ -68,7 +68,7 @@ Esto aporta evidencia desplegada de:
 
 **Integración real de bots:** Atlas, Aletheia y Tekton en Render siguen en `main`. Cada rama `audit/a2-provenance-boundary` está 2 commits por encima de `main`: el cliente firmado `arkhe-core-client.js` y la captura de procedencia observada en `arkhe-round.js`. Por tanto, estos cambios todavía no están activos en las instancias normales.
 
-**Procedencia del modelo/proveedor:** ahora existe nivel `provider-response-attested`, que registra el modelo/versión y el ID de respuesta devueltos por cada proveedor. Atlas además captura metadata de routing de OpenRouter cuando utiliza esa ruta. Esto es más fuerte que una declaración del servicio, pero todavía no constituye verificación independiente externa. El marco A/B/C de evidencia quedó documentado en `docs/provider-provenance.md`.
+**Procedencia del modelo/proveedor:** ahora existe nivel `provider-response-attested`, que registra el modelo/versión y el ID de respuesta devueltos por cada proveedor. Atlas además captura metadata de routing de OpenRouter cuando utiliza esa ruta y correlaciona la generación con `convocatoriaId` mediante `trace_id`. Esto es más fuerte que una declaración del servicio, pero todavía no constituye verificación independiente externa. El marco A/B/C de evidencia quedó documentado en `docs/provider-provenance.md`.
 
 **CI observable:** ya demostrado. Las ejecuciones más recientes terminaron correctamente: push run #81 y pull_request run #82.
 
