@@ -20,7 +20,7 @@ Este documento conserva la continuidad operativa y metodológica.
 
 ## Último hito demostrado
 
-Se ejecutó desde un Codespace una suite HTTP adversarial contra el Core desplegado en el preview de la rama.
+Se ejecutó desde un Codespace una suite HTTP adversarial completa contra el Core desplegado en el preview de la rama.
 
 Resultado observado:
 
@@ -30,7 +30,12 @@ PASS | 2. Cuerpo alterado → firma rechazada
 PASS | 3. Atlas intentando presentarse como Aletheia → rechazado
 PASS | 4a. Primera petición con nonce → aceptada
 PASS | 4b. Repetición del mismo nonce → replay rechazado
+PASS | 5. Timestamp fuera de ventana → rechazado
+PASS | 6. Firma con clave incorrecta → rechazado
+Suite terminada: 7/7 PASS.
 ```
+
+Los siete resultados corresponden a seis pruebas conceptuales porque el anti-replay se divide en primera aceptación y repetición.
 
 Esto aporta evidencia desplegada de:
 
@@ -39,6 +44,8 @@ Esto aporta evidencia desplegada de:
 - integridad del cuerpo firmado;
 - separación entre identidades de servicio;
 - anti-replay persistente;
+- frescura temporal;
+- rechazo de una firma con clave incorrecta;
 - autorización de una petición válida de Atlas por el Core desplegado.
 
 ## Estado A.2
@@ -58,10 +65,6 @@ Esto aporta evidencia desplegada de:
 **Autorización Core:** una petición válida de Atlas obtiene su convocatoria real desde Core.
 
 ### Pendiente
-
-**Timestamp fuera de ventana:** falta contraprueba HTTP desplegada independiente.
-
-**Firma con clave incorrecta:** falta contraprueba HTTP desplegada independiente.
 
 **Integración real de bots:** Atlas/Aletheia/Tekton en Render todavía siguen `main`; los clientes firmados de auditoría no deben considerarse producción.
 
@@ -88,11 +91,12 @@ La evidencia debe conservar únicamente identificadores no sensibles, resultados
 
 ## Siguiente punto de reanudación
 
-1. Ejecutar las dos contrapruebas HTTP restantes: timestamp fuera de ventana y firma con clave incorrecta.
-2. Actualizar este Spawnpoint y `docs/a2-hardening-evidence.md` con los resultados reales.
-3. Hacer limpieza de credenciales temporales.
-4. Revisar diff completo de A.2.
-5. Solo después evaluar el cierre de la auditoría y una eventual integración a `main`.
+1. Hacer limpieza de credenciales temporales de la auditoría.
+2. Revisar diff completo de A.2 y verificar que `main` siga intacto.
+3. Obtener una ejecución observable de CI y registrar su resultado.
+4. Revisar la integración desplegada de los clientes firmados de los tres bots.
+5. Mantener separado como trabajo posterior la procedencia independiente de modelo/proveedor y definir su evidencia.
+6. Solo después evaluar el cierre formal de la auditoría y una eventual integración a `main`.
 
 ## Principio metodológico Arkhé
 
