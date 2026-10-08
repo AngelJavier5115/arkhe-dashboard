@@ -424,8 +424,28 @@ async function actionCompleteInvocation(supabase, body, serviceIdentity) {
     throw new Error('La convocatoria ya fue completada o cancelada.');
   }
 
+  const incomingMetadata = body.metadata ?? {};
+  const provenanceLevel = incomingMetadata.nivel_procedencia ?? null;
+
+  if (provenanceLevel === 'provider-response-attested') {
+    const observedModel = typeof incomingMetadata.modelo_observado === 'string'
+      ? incomingMetadata.modelo_observado.trim()
+      : '';
+    const providerResponseId = typeof incomingMetadata.id_respuesta_proveedor === 'string'
+      ? incomingMetadata.id_respuesta_proveedor.trim()
+      : '';
+
+    if (!observedModel || !providerResponseId || body.modelo !== observedModel || !body.proveedor) {
+      const provenanceError = new Error(
+        'La evidencia provider-response-attested es inconsistente o está incompleta.'
+      );
+      provenanceError.status = 400;
+      throw provenanceError;
+    }
+  }
+
   const metadata = {
-    ...(body.metadata ?? {}),
+    ...incomingMetadata,
     convocatoria_id: convocatoriaId,
     identidad_version: body.identidad_version ?? null,
     modelo: body.modelo ?? null,
