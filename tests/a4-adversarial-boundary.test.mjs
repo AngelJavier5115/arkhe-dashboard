@@ -53,6 +53,19 @@ test('A4 adversarial: human auth schema aligns its principal column', () => {
   assert.match(alignmentMigration, /rename column user_id to investigator_id/i);
 });
 
+test('A4 adversarial: privileged actions require recent human reauthentication', () => {
+  const session = read('api/human-session.js');
+  const core = read('api/arkhe-core.js');
+  const registerOptions = read('api/auth/webauthn/register-options.js');
+  const registerVerify = read('api/auth/webauthn/register-verify.js');
+
+  assert.match(session, /HUMAN_REAUTH_TTL_SECONDS = 600/);
+  assert.match(core, /requireHumanGovernor\(req, \{ requireRecentReauth: true \}\)/);
+  assert.match(core, /isRecentReauthentication\(session\)/);
+  assert.match(registerOptions, /isRecentReauthentication\(session\)/);
+  assert.match(registerVerify, /isRecentReauthentication\(session\)/);
+});
+
 test('A4 adversarial: revoked credentials cannot authenticate', () => {
   const verify = read('api/auth/webauthn/verify.js');
   assert.match(verify, /!credential \|\| credential\.revoked_at/);
