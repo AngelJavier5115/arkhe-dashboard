@@ -70,9 +70,9 @@ Esto aporta evidencia desplegada de:
 
 **Procedencia independiente del modelo/proveedor:** la firma vincula la declaración al servicio, pero todavía no prueba qué motor produjo realmente la inferencia.
 
-**CI observable:** existe el workflow, pero falta una ejecución observable que pueda contabilizarse como evidencia.
+**CI observable:** ya demostrado. Las ejecuciones finales de push y pull request terminaron correctamente.
 
-**Higiene final de auditoría:** la clave pública temporal de Atlas en el preview ya fue restaurada; todavía falta revocar/rotar el bypass temporal de Vercel y borrar las llaves privadas temporales locales.
+**Higiene final de auditoría:** la clave pública temporal de Atlas en el preview ya fue restaurada y los endpoints/scripts diagnósticos temporales fueron eliminados; todavía falta revocar/rotar el bypass temporal de Vercel y borrar las llaves privadas temporales locales.
 
 **Retención de nonces:** existe expiración lógica, pero todavía debe definirse una limpieza/retención operativa de filas expiradas.
 
