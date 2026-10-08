@@ -66,7 +66,7 @@ Esto aporta evidencia desplegada de:
 
 ### Pendiente
 
-**Integración real de bots:** las instancias normales de Atlas, Aletheia y Tekton en Render siguen en `main`. Atlas, Aletheia y Tekton demostraron el smoke firmado en previews aislados, y esas previews ya fueron deprovisionadas después de la prueba. Los clientes firmados y la captura de procedencia observada siguen en las ramas de auditoría; todavía no están activos en las instancias normales.
+**Integración real de bots:** las instancias normales de Atlas, Aletheia y Tekton en Render siguen en `main`. Atlas, Aletheia y Tekton demostraron el smoke firmado en previews aislados, y esas previews ya fueron deprovisionadas. Los clientes firmados y la captura de procedencia observada siguen en las ramas de auditoría; todavía no están activos en las instancias normales.
 
 **Procedencia del modelo/proveedor:** ahora existe nivel `provider-response-attested`, que registra el modelo/versión y el ID de respuesta devueltos por cada proveedor. Atlas además captura metadata de routing de OpenRouter cuando utiliza esa ruta y correlaciona la generación con `convocatoriaId` mediante `trace_id`. Esto es más fuerte que una declaración del servicio, pero todavía no constituye verificación independiente externa. El marco A/B/C de evidencia quedó documentado en `docs/provider-provenance.md`.
 
@@ -97,7 +97,8 @@ La evidencia debe conservar únicamente identificadores no sensibles, resultados
 4. Revisar el diff completo de A2 en Core y los tres bots y comprobar que no quede código o configuración específica de la prueba temporal.
 5. Mantener separado como trabajo posterior la verificación independiente externa de modelo/proveedor.
 6. Definir la política operativa de retención/limpieza de nonces expirados.
-7. Solo después evaluar el cierre formal de la auditoría y una eventual integración a `main`.
+7. Hacer una revisión final de los cuatro PR y confirmar la estrategia de merge (preferentemente squash para conservar un historial limpio).
+8. Solo después de autorización explícita evaluar la integración a `main`.
 
 ## Principio metodológico Arkhé
 
