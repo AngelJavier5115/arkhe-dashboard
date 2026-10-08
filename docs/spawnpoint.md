@@ -93,15 +93,11 @@ La evidencia debe conservar únicamente identificadores no sensibles, resultados
 
 ## Siguiente punto de reanudación
 
-1. Revocar/rotar el bypass temporal de Vercel y borrar las llaves privadas temporales locales de Codespace.
-2. Revisar diff completo de A.2 y verificar que `main` siga intacto.
-3. Obtener una ejecución observable de CI y registrar su resultado.
-4. Revisar el diff completo de A2 en Core y los tres bots y comprobar que no quede código o configuración específica de la prueba temporal.
-5. Leer `docs/a2-closure-review.md` y tratar A2 como cerrada técnicamente; cualquier cambio posterior debe considerarse una nueva fase o excepción documentada.
-5. Mantener separado como trabajo posterior la verificación independiente externa de modelo/proveedor.
-6. Definir la política operativa de retención/limpieza de nonces expirados.
-7. Hacer una revisión final de los cuatro PR y confirmar la estrategia de merge (preferentemente squash para conservar un historial limpio).
-8. Solo después de autorización explícita evaluar la integración a `main`.
+1. Mantener `main` congelado hasta autorización explícita.
+2. Conservar A.2 como **cerrada técnicamente** en la frontera servicio→investigador.
+3. Mantener separadas como trabajo posterior: (a) autenticación criptográfica de la persona de Ángel para gobierno y (b) verificación independiente externa de modelo/proveedor.
+4. Revisar los cuatro PR como conjunto y decidir la estrategia de merge; no fusionar por defecto.
+5. Si se autoriza el corte productivo, ejecutar un cambio coordinado y documentar la activación por separado de la auditoría A.2.
 
 ## Principio metodológico Arkhé
 
