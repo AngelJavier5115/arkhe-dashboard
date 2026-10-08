@@ -96,6 +96,7 @@ export default async function handler(req, res) {
 
     const clientData = decodeClientData(response);
     const challenge = await findUnusedChallenge(supabase, clientData.challenge);
+    await reserveChallengeAttempt(supabase, challenge.id);
     const { rpID, origin } = getWebAuthnConfig();
 
     const verification = await verifyRegistrationResponse({
@@ -110,8 +111,6 @@ export default async function handler(req, res) {
     if (!verification.verified || !verification.registrationInfo) {
       return res.status(401).json({ ok: false, error: 'Registro WebAuthn no verificado.' });
     }
-
-    await reserveChallengeAttempt(supabase, challenge.id);
 
     await consumeChallenge(supabase, challenge.id);
 
