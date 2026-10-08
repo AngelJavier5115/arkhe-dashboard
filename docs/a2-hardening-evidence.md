@@ -65,6 +65,8 @@ Prueba directa contra Supabase:
 2. reutilización del mismo nonce: rechazado por la restricción de clave primaria `core_request_nonces_pkey`;
 3. datos de prueba eliminados posteriormente.
 
+La misma propiedad fue validada además mediante una petición HTTP real contra el Core desplegado: el primer uso de un nonce fue aceptado y la repetición exacta fue rechazada como replay.
+
 ### 4. Vinculación servicio → investigador
 
 El Core ya no confía en `investigador_id` para autorizar:
@@ -81,7 +83,37 @@ Por tanto:
 
 debe ser rechazado.
 
-### 5. Despliegue de prueba
+La contraprueba se ejecutó además por HTTP real contra el preview desplegado: una petición firmada con la clave de Atlas cuyo `service_id` fue cambiado a `aletheia` fue rechazada por el Core.
+
+### 5. Evidencia HTTP desplegada
+
+Se ejecutó una suite adversarial HTTP contra el endpoint del Core en el preview de la rama:
+
+`https://arkhe-dashboard-git-audit-a2-provenance-boundary-arkhe7.vercel.app/api/arkhe-core`
+
+La petición válida de Atlas usó:
+
+- `x-arkhe-service-id: atlas`;
+- timestamp fresco;
+- nonce;
+- firma Ed25519;
+- acción `obtener_convocatoria`.
+
+La respuesta fue `ok:true` y devolvió una convocatoria real de Atlas respaldada por los datos del Core.
+
+La suite desplegada produjo:
+
+```
+PASS | 1. Atlas válido → Core acepta
+PASS | 2. Cuerpo alterado → firma rechazada
+PASS | 3. Atlas intentando presentarse como Aletheia → rechazado
+PASS | 4a. Primera petición con nonce → aceptada
+PASS | 4b. Repetición del mismo nonce → replay rechazado
+```
+
+Esta evidencia demuestra que la frontera criptográfica fue alcanzada por HTTP en el despliegue de auditoría y que las contrapruebas ejecutadas se comportaron según el diseño.
+
+### 6. Despliegue de prueba
 
 La rama tiene despliegues de preview de Vercel en estado `READY`.
 
@@ -104,27 +136,44 @@ Las pruebas cubren firma válida, cambio de identidad declarada, firma falsa, us
 
 La prueba de anti-replay se ejecutó directamente contra Supabase y confirmó el rechazo del nonce duplicado.
 
+## Evidencia de ejecución observable
+
+La suite adversarial HTTP fue ejecutada desde un Codespace sobre la rama `audit/a2-provenance-boundary`, después de sincronizar el script con GitHub.
+
+Resultado observado:
+
+- 5/5 casos reportados como `PASS`;
+- 0 casos reportados como `FAIL`.
+
+La suite validó específicamente aceptación válida, integridad del cuerpo, separación de servicios y anti-replay persistente.
+
 ## Límites actuales
 
-### HTTP real contra el preview protegido
+### Timestamp fuera de ventana
 
-No se contabiliza todavía como evidencia una llamada HTTP externa completa al endpoint protegido del preview.
+La frescura temporal está implementada y fue cubierta por la suite local de autenticación, pero **todavía no se ha registrado una contraprueba HTTP independiente contra el Core desplegado** con un timestamp deliberadamente fuera de ventana.
 
-Se intentó una petición POST real con firma Atlas válida, timestamp fresco, nonce y cuerpo de `obtener_convocatoria`. Vercel Authentication respondió `401 Protected by Vercel Authentication` antes de alcanzar al Core.
+Estado: **PENDIENTE**.
 
-La documentación vigente de Vercel ofrece `vercel curl` y Protection Bypass for Automation para pruebas E2E. Sin embargo, el canal de ejecución disponible en esta auditoría no permite transportar de forma segura el secreto de bypass hasta el sandbox que realiza el POST.
+### Firma con clave incorrecta
 
-Por metodología, esto queda como:
+La firma con clave incorrecta está cubierta por las pruebas criptográficas locales, pero **todavía no se ha registrado una contraprueba HTTP independiente contra el Core desplegado**.
 
-**NO DEMOSTRADO TODAVÍA**
+Estado: **PENDIENTE**.
 
-No se contabiliza un `401` de Vercel como éxito de la autenticación interna del Core.
+### Integración de los bots en despliegue
 
-### Integración desplegada contra Supabase
+Los clientes firmados de Atlas, Aletheia y Tekton existen en sus respectivas ramas de auditoría, y las variables privadas fueron preparadas en Render. Sin embargo, los servicios normales de Render todavía siguen `main`.
 
-Se preparó un sandbox aislado con el código exacto de esta rama y dependencias instaladas. El arnés logró acceder a la red externa, pero la frontera de protección de Vercel bloqueó la petición real al endpoint.
+Por tanto, **no se afirma todavía que las instancias normales desplegadas de los tres bots estén usando esta firma Ed25519**.
 
-No se afirma una prueba de integración que no haya alcanzado al Core.
+### Procedencia independiente del modelo/proveedor
+
+La firma demuestra que la declaración `modelo/proveedor` provino del servicio autenticado y que no fue alterada durante el transporte.
+
+Eso **no demuestra por sí solo** que el modelo o proveedor declarado sea realmente el motor que ejecutó la inferencia.
+
+Estado: **PENDIENTE**.
 
 ### CI de GitHub
 
@@ -136,31 +185,38 @@ El workflow de la rama existe y está configurado para ejecutarse en:
 
 La ejecución de CI debe considerarse válida únicamente cuando exista una ejecución observable del workflow con sus resultados. No se reutiliza como evidencia una simple existencia del archivo YAML.
 
+Estado: **PENDIENTE**.
+
 ## Estado metodológico
 
 - identidad lógica: **demostrado**;
-- identidad criptográfica del servicio: **demostrado en pruebas locales**;
-- integridad del mensaje: **demostrado**;
-- frescura temporal: **demostrado en pruebas locales**;
-- anti-replay persistente: **demostrado contra Supabase**;
-- suplantación cruzada entre servicios: **rechazada en prueba criptográfica**;
-- autorización del Core con firma: **implementada en rama**;
+- identidad criptográfica del servicio: **demostrado localmente y por HTTP contra Core desplegado**;
+- integridad del mensaje: **demostrado localmente y por HTTP contra Core desplegado**;
+- frescura temporal: **demostrado localmente; HTTP desplegado pendiente**;
+- anti-replay persistente: **demostrado contra Supabase y por HTTP contra Core desplegado**;
+- suplantación cruzada entre servicios: **rechazada localmente y por HTTP contra Core desplegado**;
+- autorización del Core con firma: **demostrado por HTTP contra Core desplegado**;
 - atribución criptográfica de `modelo/proveedor` al servicio: **cubierta por la firma del cuerpo**;
 - procedencia independiente del modelo/proveedor: **pendiente**;
-- llamada HTTP real al Core protegido: **pendiente de demostración**;
+- llamada HTTP real al Core protegido: **demostrado**;
 - CI observable de la rama: **pendiente de evidencia**.
 
 ## Regla de integración
 
 Esta rama no debe fusionarse a `main` solo porque el código compile o porque las pruebas locales pasen.
 
-La condición de cierre de A.2 es obtener evidencia de la frontera desplegada y completar la contraprueba adversarial:
+Con la suite HTTP actual ya existe evidencia desplegada para:
 
 1. Atlas firmado → aceptar;
-2. Tekton firmado intentando actuar como Atlas → rechazar;
-3. cuerpo mutado después de firmar → rechazar;
-4. timestamp fuera de ventana → rechazar;
-5. nonce reutilizado → rechazar;
+2. cuerpo mutado después de firmar → rechazar;
+3. servicio cruzado / identidad falsificada → rechazar;
+4. nonce reutilizado → rechazar.
+
+Antes del cierre definitivo de A.2 todavía deben completarse las contrapruebas HTTP de:
+
+5. timestamp fuera de ventana → rechazar;
 6. firma con clave incorrecta → rechazar.
 
-Hasta completar esa evidencia, `main` permanece congelado respecto de este endurecimiento.
+Después deberá revisarse la integración real de los clientes de los tres bots, la procedencia independiente de modelo/proveedor, el resultado observable de CI y la limpieza de las credenciales temporales utilizadas en la auditoría.
+
+Hasta completar esas evidencias, `main` permanece congelado respecto de este endurecimiento.
