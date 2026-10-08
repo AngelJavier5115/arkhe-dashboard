@@ -17,6 +17,11 @@ export function getAuthSupabase() {
   );
 }
 
+export function requireSameOrigin(req) {
+  const expected = getWebAuthnConfig().origin;
+  if (req.headers.origin !== expected) { const error = new Error('Origen no autorizado.'); error.status = 403; throw error; }
+}
+
 export function getWebAuthnConfig() {
   return {
     rpID: requiredEnv('ARKHE_AUTH_RP_ID'),
