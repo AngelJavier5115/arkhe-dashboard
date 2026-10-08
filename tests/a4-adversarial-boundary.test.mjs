@@ -6,7 +6,7 @@ const read = name => fs.readFileSync(new URL('../' + name, import.meta.url), 'ut
 
 test('A4 adversarial: Core never trusts a client-supplied actor identity', () => {
   const core = read('api/arkhe-core.js');
-  assert.match(core, /humanIdentity = await requireHumanGovernor\(req\)/);
+  assert.match(core, /humanIdentity = await requireHumanGovernor\(req, \{ requireRecentReauth: true \}\)/);
   assert.match(core, /assertBodyActorMatches\(body, humanIdentity\)/);
   assert.doesNotMatch(core, /requireAngel\(body\.actor_id\)/);
 });
