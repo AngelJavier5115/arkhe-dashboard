@@ -222,8 +222,8 @@ En ejecuciones posteriores y tras completar los cambios de esta auditoría se ob
 - `npm install --no-audit --no-fund`: **success**;
 - `npm test`: **success**;
 - job `provenance`: **success**;
-- ejecución por `push`: **success** (run #81);
-- ejecución por `pull_request`: **success** (run #82).
+- ejecución por `push`: **success** (run #145, commit final de la revisión);
+- ejecución por `pull_request`: **success** (run #146, mismo commit).
 
 Estado: **DEMOSTRADO** para la ejecución observable del workflow en la rama.
 
