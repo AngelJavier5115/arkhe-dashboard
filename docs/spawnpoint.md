@@ -113,6 +113,6 @@ Al reanudar, empezar leyendo:
 
 `docs/a2-hardening-evidence.md`
 
-y después este Spawnpoint.
+Después leer este Spawnpoint y, cuando corresponda, `docs/provider-provenance.md` y `docs/source-registry-proposal.md`.
 
 No reiniciar trabajo ya demostrado salvo que aparezca evidencia contradictoria.
