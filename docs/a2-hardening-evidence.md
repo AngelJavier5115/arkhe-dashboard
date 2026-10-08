@@ -211,13 +211,13 @@ Se observó una primera ejecución fallida en `setup-node`. La causa operativa f
 
 La siguiente ejecución llegó correctamente a `npm install`, y después `npm test` inicialmente falló porque `actionCompleteInvocation` no estaba exportada desde `api/arkhe-core.js`. Se corrigió la exportación para permitir el test directo de la acción.
 
-En el commit posterior se observó la ejecución de GitHub Actions completada con:
+En ejecuciones posteriores y tras completar los cambios de esta auditoría se observó:
 
 - `npm install --no-audit --no-fund`: **success**;
 - `npm test`: **success**;
 - job `provenance`: **success**;
-- ejecución por `push`: **success** (run #65; posteriormente #63 también fue success);
-- ejecución por `pull_request`: **success** (run #66; posteriormente #64 también fue success).
+- ejecución por `push`: **success** (run #81);
+- ejecución por `pull_request`: **success** (run #82).
 
 Estado: **DEMOSTRADO** para la ejecución observable del workflow en la rama.
 
