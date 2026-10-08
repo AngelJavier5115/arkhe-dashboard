@@ -76,6 +76,8 @@ Esto aporta evidencia desplegada de:
 
 **Retención de nonces:** implementada. Supabase Cron ejecuta limpieza diaria y conserva 24 horas adicionales después de `expires_at`.
 
+**Frontera de gobierno humano:** pendiente como trabajo posterior. Las acciones de gobierno continúan usando `ARKHE_CORE_TOKEN` + `actor_id === ANGEL_ID`; esto demuestra una regla lógica de gobierno dentro del Core, pero no una prueba criptográfica de que el poseedor del token sea Ángel. No se modifica RLS por este hallazgo.
+
 ## Regla de seguridad y gobierno
 
 No fusionar esta rama con `main` todavía.
