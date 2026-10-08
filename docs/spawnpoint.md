@@ -70,7 +70,7 @@ Esto aporta evidencia desplegada de:
 
 **Procedencia independiente del modelo/proveedor:** la firma vincula la declaración al servicio, pero todavía no prueba qué motor produjo realmente la inferencia.
 
-**CI observable:** ya demostrado. Las ejecuciones finales de push y pull request terminaron correctamente.
+**CI observable:** ya demostrado. Las ejecuciones finales de push y pull request terminaron correctamente; las más recientes son push run #65 y pull_request run #66.
 
 **Higiene final de auditoría:** la clave pública temporal de Atlas en el preview ya fue restaurada y los endpoints/scripts diagnósticos temporales fueron eliminados; todavía falta revocar/rotar el bypass temporal de Vercel y borrar las llaves privadas temporales locales.
 
