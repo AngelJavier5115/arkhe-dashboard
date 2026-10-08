@@ -1,4 +1,4 @@
-# SPawnpoint — Estado de continuidad Arkhé
+# Spawnpoint — Estado de continuidad Arkhé
 
 > Punto de reanudación técnico y metodológico. Este archivo funciona como checkpoint vivo del proyecto para evitar pérdida de continuidad entre sesiones.
 
