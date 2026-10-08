@@ -1,5 +1,5 @@
 import { verifyRegistrationResponse } from '@simplewebauthn/server';
-import { getAuthSupabase, getWebAuthnConfig, ANGEL_ID } from '../../human-auth-config.js';
+import { getAuthSupabase, getWebAuthnConfig, requireSameOrigin, ANGEL_ID } from '../../human-auth-config.js';
 import { getHumanSession } from '../../human-session.js';
 
 function bootstrapAllowed(req) {
@@ -62,6 +62,8 @@ export default async function handler(req, res) {
     if (req.method !== 'POST') {
       return res.status(405).json({ ok: false, error: 'Método no permitido.' });
     }
+
+    requireSameOrigin(req);
 
     const response = req.body;
     if (!response?.id || !response?.response) {
