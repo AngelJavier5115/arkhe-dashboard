@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { authenticateServiceRequest, expectedInvestigatorForService, MAX_CLOCK_SKEW_MS } from './service-auth.js';
-import { getAuthSupabase, getWebAuthnConfig } from './human-auth-config.js';
+import { getAuthSupabase, getWebAuthnConfig, requireSameOrigin } from './human-auth-config.js';
 import { getHumanSession } from './human-session.js';
 
 const ANGEL_ID = '2a003935-f248-442c-96fc-dcee29c4d41a';
@@ -56,13 +56,7 @@ function requireCoreToken(req) {
 }
 
 async function requireHumanGovernor(req) {
-  const { origin } = getWebAuthnConfig();
-  const requestOrigin = req.headers.origin;
-  if (requestOrigin && requestOrigin !== origin) {
-    const error = new Error('Origen no autorizado para una acción de gobierno.');
-    error.status = 403;
-    throw error;
-  }
+  requireSameOrigin(req);
 
   const authSupabase = getAuthSupabase();
   const session = await getHumanSession(req, authSupabase);
