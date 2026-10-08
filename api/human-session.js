@@ -3,6 +3,7 @@ import crypto from 'node:crypto';
 export const ANGEL_ID = '2a003935-f248-442c-96fc-dcee29c4d41a';
 export const SESSION_COOKIE = '__Host-arkhe-session';
 export const SESSION_TTL_SECONDS = 28800;
+export const HUMAN_REAUTH_TTL_SECONDS = 600;
 
 export function randomSessionToken(bytes = 32) {
   return crypto.randomBytes(bytes).toString('base64url');
@@ -24,6 +25,14 @@ export function parseCookies(header = '') {
           ? [part, '']
           : [part.slice(0, index), decodeURIComponent(part.slice(index + 1))];
       })
+  );
+}
+
+export function isRecentReauthentication(session, now = Date.now()) {
+  return Boolean(
+    session &&
+    Number.isFinite(Date.parse(session.reauthenticatedAt)) &&
+    Date.parse(session.reauthenticatedAt) + HUMAN_REAUTH_TTL_SECONDS * 1000 > now
   );
 }
 
@@ -69,6 +78,7 @@ export async function createHumanSession(supabase) {
       session_hash: hashSessionToken(token),
       investigator_id: ANGEL_ID,
       expires_at: expiresAt,
+      reauthenticated_at: new Date().toISOString(),
     });
 
   if (error) throw error;
@@ -83,7 +93,7 @@ export async function getHumanSession(req, supabase) {
 
   const { data, error } = await supabase
     .from('arkhe_human_sessions')
-    .select('id, investigator_id, expires_at, revoked_at')
+    .select('id, investigator_id, expires_at, revoked_at, reauthenticated_at')
     .eq('session_hash', hashSessionToken(token))
     .maybeSingle();
 
@@ -101,6 +111,7 @@ export async function getHumanSession(req, supabase) {
     id: data.id,
     investigatorId: ANGEL_ID,
     expiresAt: data.expires_at,
+    reauthenticatedAt: data.reauthenticated_at,
   };
 }
 
