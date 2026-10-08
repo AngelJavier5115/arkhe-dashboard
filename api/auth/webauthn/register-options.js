@@ -1,5 +1,5 @@
 import { generateRegistrationOptions } from '@simplewebauthn/server';
-import { getAuthSupabase, getWebAuthnConfig, ANGEL_ID, WEBAUTHN_TTL_MS } from '../../human-auth-config.js';
+import { getAuthSupabase, getWebAuthnConfig, requireSameOrigin, ANGEL_ID, WEBAUTHN_TTL_MS } from '../../human-auth-config.js';
 import { getHumanSession } from '../../human-session.js';
 
 function bootstrapAllowed(req) {
@@ -13,6 +13,8 @@ export default async function handler(req, res) {
     if (req.method !== 'POST') {
       return res.status(405).json({ ok: false, error: 'Método no permitido.' });
     }
+
+    requireSameOrigin(req);
 
     const supabase = getAuthSupabase();
     const session = await getHumanSession(req, supabase);
