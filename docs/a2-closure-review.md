@@ -81,7 +81,7 @@ La retención de 24 horas es intencional: mantiene una ventana forense adicional
 
 ## 4. Procedencia de modelo/proveedor
 
-Se implementó 'provider-response-attested'.
+Se implementó el nivel 'provider-response-attested' en los tres clientes de los investigadores.
 
 El servicio registra:
 
@@ -104,7 +104,7 @@ La distinción queda:
 
 'cryptographically-provider-attested' → **pendiente**
 
-La procedencia independiente queda fuera de la frontera mínima necesaria para A.2 y se mantiene como trabajo posterior.
+Las pruebas de CI validan la sintaxis y la integración del código, pero todavía no se ha ejecutado una inferencia real de cada proveedor en esta rama después de introducir esta captura. Por tanto, la implementación está verificada estáticamente; la evidencia runtime de proveedor y la procedencia independiente quedan como trabajo posterior.
 
 ## 5. CI y revisión reproducible
 
