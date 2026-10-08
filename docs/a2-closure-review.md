@@ -145,7 +145,14 @@ Esta revisión no declara:
 - que main haya sido modificado;
 - que la procedencia del modelo/proveedor sea independiente;
 - que exista una atestación criptográfica emitida por un proveedor;
-- que el Core pueda ejecutar gobierno sin Ángel.
+- que exista una autenticación criptográfica de la persona de Ángel para las acciones de gobierno.
+
+### Riesgo de gobierno separado
+
+Las acciones de gobierno siguen protegidas mediante `ARKHE_CORE_TOKEN` y validan el `actor_id` enviado en el cuerpo contra el UUID de Ángel. Esto preserva la regla lógica **“solo Ángel puede gobernar”** dentro del contrato del Core, pero no demuestra la propiedad criptográfica **“quien posee el Core token es Ángel”**.
+
+Por tanto, la posesión de un bearer token del Core debe considerarse una credencial de transporte y autorización técnica, no una prueba de identidad humana. Esta frontera queda fuera del cierre A.2 y se registra como trabajo arquitectónico posterior.
+
 
 ## 8. Decisión de cierre
 
