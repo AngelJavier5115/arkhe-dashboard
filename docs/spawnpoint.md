@@ -66,13 +66,13 @@ Esto aporta evidencia desplegada de:
 
 ### Pendiente
 
-**Integración real de bots:** Atlas/Aletheia/Tekton en Render todavía siguen `main`; los clientes firmados de auditoría no deben considerarse producción.
+**Integración real de bots:** Atlas, Aletheia y Tekton en Render siguen en `main`. Cada rama `audit/a2-provenance-boundary` contiene únicamente el cambio de `arkhe-core-client.js` (1 commit por encima de `main`). Por tanto, los clientes firmados de auditoría todavía no están activos en las instancias normales.
 
 **Procedencia independiente del modelo/proveedor:** la firma vincula la declaración al servicio, pero todavía no prueba qué motor produjo realmente la inferencia.
 
 **CI observable:** ya demostrado. Las ejecuciones finales de push y pull request terminaron correctamente; las más recientes son push run #65 y pull_request run #66.
 
-**Higiene final de auditoría:** la clave pública temporal de Atlas en el preview ya fue restaurada y los endpoints/scripts diagnósticos temporales fueron eliminados; todavía falta revocar/rotar el bypass temporal de Vercel y borrar las llaves privadas temporales locales.
+**Higiene final de auditoría:** la clave pública temporal de Atlas en el preview ya fue restaurada, los endpoints/scripts diagnósticos temporales fueron eliminados y las llaves privadas temporales locales ya fueron borradas. Solo queda la gestión del bypass temporal de Vercel; su operación de revocación disponible requiere el secreto y no se expone ni se vuelve a solicitar en el chat.
 
 **Retención de nonces:** existe expiración lógica, pero todavía debe definirse una limpieza/retención operativa de filas expiradas.
 
