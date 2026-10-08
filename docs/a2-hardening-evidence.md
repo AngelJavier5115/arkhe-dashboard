@@ -261,3 +261,34 @@ Las contrapruebas HTTP de autenticación, integridad, separación de servicios, 
 Para el cierre definitivo todavía deberá revisarse la activación desplegada de los clientes firmados de los tres bots, la procedencia independiente externa de modelo/proveedor, la limpieza del bypass temporal de Vercel y la política operativa de retención/limpieza de nonces expirados.
 
 Hasta completar esas evidencias, `main` permanece congelado respecto de este endurecimiento.
+
+
+### 7. Atlas desplegado → Core: smoke test real
+
+La instancia real de **Atlas PR #1** fue desplegada por Render desde `audit/a2-provenance-boundary`.
+
+Los logs de Render muestran:
+
+- checkout de la rama de auditoría;
+- build exitoso;
+- proceso `npm start`;
+- mensaje `A2 Render preview mode: Discord login disabled.`;
+- servidor HTTP activo y servicio LIVE.
+
+Después se ejecutó desde el navegador:
+
+`GET https://atlas-bot-pr-1.onrender.com/a2/smoke`
+
+La respuesta observada fue:
+
+```json
+{"ok":true,"service_id":"atlas","investigator_id":"6deb143d-17c4-4d1a-a2d2-1fd9ddf2853f","convocatoria_id":"e987b121-f4b2-41f0-8528-48cced2ccf1e"}
+```
+
+La ruta `/a2/smoke` no contiene una implementación alternativa de la firma: llama a `coreRequest()` del propio Atlas Preview. Por tanto, esta observación constituye evidencia de que **la aplicación Atlas desplegada en Render generó una petición autenticada mediante su cliente firmado y obtuvo del Core una convocatoria cuya identidad corresponde a Atlas**.
+
+Esta evidencia es más fuerte que la prueba anterior desde Codespace porque el ejecutor real de la petición fue la instancia desplegada del investigador.
+
+No se ejecutó una inferencia de modelo ni se completó una convocatoria en este smoke test; la operación fue deliberadamente de lectura para aislar la propiedad de autenticación.
+
+**Estado: DEMOSTRADO por instancia Render real → Core desplegado.**
