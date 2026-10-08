@@ -168,7 +168,7 @@ Estado: **DEMOSTRADO por HTTP**.
 
 ### Integración de los bots en despliegue
 
-Los clientes firmados de Atlas, Aletheia y Tekton existen en sus respectivas ramas de auditoría. Cada rama está 1 commit por encima de su `main` correspondiente y el único archivo modificado es `arkhe-core-client.js`.
+Los clientes firmados de Atlas, Aletheia y Tekton existen en sus respectivas ramas de auditoría. Las ramas contienen cambios aislados en los componentes de cliente, cuerpo investigador y workflow de auditoría; la comparación contra `main` no incorpora cambios funcionales ajenos a A2.
 
 Las tres instancias normales de Render continúan desplegadas desde `main`. Las variables `ARKHE_SERVICE_ID` y `ARKHE_SERVICE_PRIVATE_KEY` ya fueron preparadas en Render.
 
@@ -227,7 +227,7 @@ En ejecuciones posteriores y tras completar los cambios de esta auditoría se ob
 
 Estado: **DEMOSTRADO** para la ejecución observable del workflow en la rama.
 
-Los workflows A2 de los tres repositorios de bots también terminaron en **success** para `push` y `pull_request`, validando sintaxis de `index.js`, `arkhe-round.js` y `arkhe-core-client.js`.
+Los workflows A2 de los tres repositorios de bots también terminaron en **success** para `push` y `pull_request`, validando sintaxis de `index.js`, `arkhe-round.js` y `arkhe-core-client.js`. Las ejecuciones más recientes tras el guard de Pull Request Preview fueron success en Atlas, Aletheia y Tekton.
 
 ## Estado metodológico
 
