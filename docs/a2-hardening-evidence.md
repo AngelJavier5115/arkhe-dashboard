@@ -201,7 +201,7 @@ Esto cambia la calidad de la evidencia: ya no registramos únicamente lo que el 
 
 Sin embargo, esta evidencia sigue siendo **atestación del servicio basada en la respuesta del proveedor**. El servicio todavía puede falsificar externamente esos campos antes de firmarlos si fuera malicioso. Por ello, no se considera una prueba criptográficamente independiente de la inferencia.
 
-**Estado: DEMOSTRADO como provider-response-attested; procedencia independiente externa: PENDIENTE.**
+**Estado: implementación DEMOSTRADA; evidencia runtime del proveedor aún no ejecutada; procedencia independiente externa: PENDIENTE.**
 
 El detalle comparativo de las rutas OpenRouter, OpenAI, Gemini y Groq, y los niveles A/B/C de evidencia, quedó documentado en `docs/provider-provenance.md`.
 
@@ -239,6 +239,7 @@ Los workflows A2 de los tres repositorios de bots también terminaron en **succe
 - suplantación cruzada entre servicios: **rechazada localmente y por HTTP contra Core desplegado**;
 - autorización del Core con firma: **demostrado por HTTP contra Core desplegado**;
 - atribución criptográfica de `modelo/proveedor` al servicio: **cubierta por la firma del cuerpo**;
+- procedencia `provider-response-attested`: **implementada y validada estáticamente; ejecución de inferencia real aún no realizada**;
 - procedencia independiente del modelo/proveedor: **pendiente**;
 - llamada HTTP real al Core protegido: **demostrado**;
 - CI observable de la rama: **pendiente de evidencia**.
