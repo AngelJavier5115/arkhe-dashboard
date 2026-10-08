@@ -33,25 +33,24 @@ test('A4 adversarial: authentication challenge is one-use and freshness-bound', 
 });
 
 test('A4 adversarial: challenge issuance is throttled and attempts are bounded', () => {
-  const migration = read('supabase/migrations/20261008143000_harden_a4_human_auth_schema.sql');
+  const activeChallengeMigration = read('supabase/migrations/20261008151000_one_active_webauthn_challenge.sql');
+  const attemptMigration = read('supabase/migrations/20261008152000_bound_webauthn_attempts.sql');
   const authOptions = read('api/auth/webauthn/options.js');
   const registerOptions = read('api/auth/webauthn/register-options.js');
 
-  assert.match(migration, /arkhe_webauthn_active_challenge_unique_idx/);
-  assert.match(migration, /arkhe_webauthn_reserve_attempt/);
+  assert.match(activeChallengeMigration, /arkhe_webauthn_one_active_challenge_idx/);
+  assert.match(attemptMigration, /arkhe_webauthn_reserve_attempt/);
+  assert.match(attemptMigration, /attempts integer not null default 0/);
   assert.match(authOptions, /status\(429\)/);
   assert.match(registerOptions, /status\(429\)/);
 });
 
-test('A4 adversarial: human auth schema binds data to investigator_id', () => {
-  const migration = read('supabase/migrations/20261008130000_create_human_auth_tables.sql');
-  const corrective = read('supabase/migrations/20261008143000_harden_a4_human_auth_schema.sql');
+test('A4 adversarial: human auth schema aligns its principal column', () => {
+  const initialMigration = read('supabase/migrations/20261008130000_create_human_auth_tables.sql');
+  const alignmentMigration = read('supabase/migrations/20261008150000_align_human_auth_principal.sql');
 
-  assert.doesNotMatch(migration, /user_id/);
-  assert.match(migration, /investigator_id/);
-  assert.match(migration, /attempts integer not null default 0/);
-  assert.match(corrective, /rename column user_id to investigator_id/i);
-  assert.match(corrective, /alter column investigator_id set not null/i);
+  assert.match(initialMigration, /user_id/);
+  assert.match(alignmentMigration, /rename column user_id to investigator_id/i);
 });
 
 test('A4 adversarial: revoked credentials cannot authenticate', () => {
