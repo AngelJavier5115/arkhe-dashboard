@@ -1,5 +1,5 @@
 import { generateAuthenticationOptions } from '@simplewebauthn/server';
-import { getAuthSupabase, ANGEL_ID, WEBAUTHN_TTL_MS } from '../../human-auth-config.js';
+import { getAuthSupabase, requireSameOrigin, getWebAuthnConfig, ANGEL_ID, WEBAUTHN_TTL_MS } from '../../human-auth-config.js';
 
 export default async function handler(req, res) {
   try {
@@ -10,12 +10,12 @@ export default async function handler(req, res) {
     requireSameOrigin(req);
 
     const supabase = getAuthSupabase();
-    const { rpID } = await import('../../human-auth-config.js').then(mod => mod.getWebAuthnConfig());
+    const { rpID } = getWebAuthnConfig();
 
     const { data: credentials, error } = await supabase
       .from('arkhe_human_credentials')
       .select('credential_id, transports')
-      .eq('user_id', ANGEL_ID)
+      .eq('investigator_id', ANGEL_ID)
       .is('revoked_at', null);
 
     if (error) throw error;
@@ -35,7 +35,7 @@ export default async function handler(req, res) {
     const { error: challengeError } = await supabase
       .from('arkhe_webauthn_challenges')
       .insert({
-        user_id: ANGEL_ID,
+        investigator_id: ANGEL_ID,
         challenge: options.challenge,
         purpose: 'authentication',
         expires_at: new Date(Date.now() + WEBAUTHN_TTL_MS).toISOString(),
