@@ -58,6 +58,20 @@ where investigator_id is null;
 alter table public.arkhe_webauthn_challenges
   alter column investigator_id set not null;
 
+with ranked as (
+  select
+    id,
+    row_number() over (
+      partition by investigator_id, purpose
+      order by created_at desc, id desc
+    ) as rn
+  from public.arkhe_webauthn_challenges
+  where used_at is null
+)
+update public.arkhe_webauthn_challenges
+   set used_at = now()
+ where id in (select id from ranked where rn > 1);
+
 create unique index if not exists arkhe_webauthn_active_challenge_unique_idx
   on public.arkhe_webauthn_challenges (investigator_id, purpose)
   where used_at is null;
@@ -73,6 +87,7 @@ set search_path = public
 as $$
 declare
   reserved boolean := false;
+  affected_rows integer := 0;
 begin
   if p_max_attempts < 1 then
     raise exception 'p_max_attempts must be positive';
@@ -85,7 +100,8 @@ begin
      and expires_at > now()
      and attempts < p_max_attempts;
 
-  get diagnostics reserved = row_count > 0;
+  get diagnostics affected_rows = row_count;
+  reserved := affected_rows > 0;
   return reserved;
 end;
 $$;
