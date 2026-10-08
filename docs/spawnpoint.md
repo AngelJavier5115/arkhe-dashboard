@@ -74,7 +74,7 @@ Esto aporta evidencia desplegada de:
 
 **Higiene final de auditoría:** completada para los recursos temporales utilizados: clave pública temporal restaurada, endpoints/scripts diagnósticos eliminados, llaves privadas temporales borradas, fixture de Tekton eliminada y bypass temporal de Vercel revocado.
 
-**Retención de nonces:** existe expiración lógica, pero todavía debe definirse una limpieza/retención operativa de filas expiradas.
+**Retención de nonces:** implementada. Supabase Cron ejecuta limpieza diaria y conserva 24 horas adicionales después de `expires_at`.
 
 ## Regla de seguridad y gobierno
 
@@ -95,6 +95,7 @@ La evidencia debe conservar únicamente identificadores no sensibles, resultados
 2. Revisar diff completo de A.2 y verificar que `main` siga intacto.
 3. Obtener una ejecución observable de CI y registrar su resultado.
 4. Revisar el diff completo de A2 en Core y los tres bots y comprobar que no quede código o configuración específica de la prueba temporal.
+5. Leer `docs/a2-closure-review.md` y tratar A2 como cerrada técnicamente; cualquier cambio posterior debe considerarse una nueva fase o excepción documentada.
 5. Mantener separado como trabajo posterior la verificación independiente externa de modelo/proveedor.
 6. Definir la política operativa de retención/limpieza de nonces expirados.
 7. Hacer una revisión final de los cuatro PR y confirmar la estrategia de merge (preferentemente squash para conservar un historial limpio).
@@ -106,7 +107,7 @@ No declarar resuelto lo que no haya sido demostrado.
 
 El objetivo de esta auditoría no es confirmar que nuestra implementación “parece correcta”, sino intentar romper la frontera y conservar tanto los éxitos como los fallos y límites.
 
-**Estado del checkpoint:** A.2 avanzada, evidencia desplegada parcial, `main` congelado.
+**Estado del checkpoint:** A.2 **CERRADA TÉCNICAMENTE** en la frontera de identidad de servicio; no fusionada. `main` congelado hasta el corte productivo autorizado.
 
 ## Continuidad
 
