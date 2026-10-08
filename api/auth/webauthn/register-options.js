@@ -73,7 +73,8 @@ export default async function handler(req, res) {
 
     if (challengeError) {
       if (challengeError.code === '23505') {
-        return res.status(409).json({ ok: false, error: 'Ya existe un challenge de registro activo.' });
+        res.setHeader('Retry-After', String(Math.ceil(WEBAUTHN_TTL_MS / 1000)));
+        return res.status(429).json({ ok: false, error: 'Ya existe un challenge de registro activo.' });
       }
       throw challengeError;
     }
