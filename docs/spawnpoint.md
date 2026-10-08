@@ -70,7 +70,7 @@ Esto aporta evidencia desplegada de:
 
 **Procedencia del modelo/proveedor:** ahora existe nivel `provider-response-attested`, implementado en los tres clientes y validado estáticamente por CI. Atlas además captura metadata de routing de OpenRouter cuando utiliza esa ruta y correlaciona la generación con `convocatoriaId` mediante `trace_id`. Esto es más fuerte que una declaración del servicio, pero todavía no constituye verificación independiente externa ni se ha ejecutado aquí una inferencia runtime posterior al cambio. El marco A/B/C de evidencia quedó documentado en `docs/provider-provenance.md`.
 
-**CI observable:** ya demostrado. Core y los tres bots tienen ejecuciones finales de push y pull_request en `success`.
+**CI observable:** ya demostrado. Core tiene runs finales #145/#146 en `success`; los tres bots tienen runs finales de push y pull_request en `success`.
 
 **Higiene final de auditoría:** completada para los recursos temporales utilizados: clave pública temporal restaurada, endpoints/scripts diagnósticos eliminados, llaves privadas temporales borradas, fixture de Tekton eliminada y bypass temporal de Vercel revocado.
 
