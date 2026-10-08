@@ -63,7 +63,7 @@ salvo que aparezca una firma o mecanismo equivalente del proveedor.
 
 La mejor mejora inmediata es añadir una identidad de correlación de Arkhé a cada llamada al proveedor y conservarla junto al ID que devuelve el proveedor.
 
-Para OpenRouter, además, puede activarse `X-OpenRouter-Metadata: enabled` para conservar datos de routing y permitir una futura correlación con la capa de observabilidad.
+Para OpenRouter, además, puede activarse `X-OpenRouter-Metadata: enabled` para conservar datos de routing. Atlas ahora envía `trace.trace_id = convocatoriaId`, además de `trace_name` y `generation_name`, de forma que una futura plataforma de observabilidad externa pueda correlacionar la generación con una convocatoria concreta. OpenRouter documenta que `trace_id` sirve para agrupar solicitudes en los destinos de observabilidad.
 
 Para OpenAI directo conviene conservar el `x-request-id` entregado por OpenAI; para Gemini, `responseId`; para Groq, `id`.
 
