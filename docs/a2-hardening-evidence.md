@@ -313,3 +313,30 @@ La ruta `/a2/smoke` llama al `coreRequest()` firmado del propio servicio. La res
 La operación fue deliberadamente de lectura; no se ejecutó inferencia ni se completó una convocatoria.
 
 **Estado: DEMOSTRADO por instancia Render real → Core desplegado.**
+
+
+### 9. Tekton desplegado → Core: fixture controlado
+
+Para no reutilizar ni modificar una convocatoria histórica ya completada, se creó una **fixture temporal de auditoría** en la base de datos para la ronda #10. La fixture está marcada en el contexto como `origen=a2-audit-fixture` y `no_gobernanza=true`.
+
+Esta fixture **no constituye evidencia del flujo de gobierno `iniciar_ronda` → `convocar_investigadores`**. Su propósito exclusivo es aislar y probar la frontera `Tekton desplegado → cliente firmado → Core`.
+
+La instancia **Tekton PR #1** fue desplegada desde `audit/a2-provenance-boundary` y sus logs muestran:
+
+- checkout de la rama de auditoría;
+- build exitoso;
+- `A2 Render preview mode: Discord login disabled.`;
+- servidor HTTP activo;
+- servicio LIVE.
+
+El Preview recibió `ARKHE_SERVICE_ID=tekton` y la fixture de convocatoria de Tekton.
+
+La prueba siguiente debe ejecutarse desde el navegador:
+
+`GET https://tekton-bot-pr-1.onrender.com/a2/smoke`
+
+El resultado permitirá separar la evidencia de **identidad desplegada** de la evidencia de **gobernanza de convocatorias**.
+
+La fixture deberá eliminarse después del smoke test, haya éxito o fallo, para no dejar estado de laboratorio permanente en Core.
+
+**Estado: Preview preparado; smoke HTTP pendiente de ejecución.**
