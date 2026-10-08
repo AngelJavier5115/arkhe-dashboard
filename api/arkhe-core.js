@@ -598,7 +598,6 @@ async function actionOpenDebate(supabase, body, actorId) {
   }, actorId);
 
   const convocated = await actionCreateInvocations(supabase, {
-    actor_id: ANGEL_ID,
     ronda_id: created.ronda.id,
     investigadores: participants,
     tipo_convocatoria: 'debate',
