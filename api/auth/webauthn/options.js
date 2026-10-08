@@ -49,7 +49,13 @@ export default async function handler(req, res) {
         expires_at: new Date(Date.now() + WEBAUTHN_TTL_MS).toISOString(),
       });
 
-    if (challengeError) throw challengeError;
+    if (challengeError) {
+      if (challengeError.code === '23505') {
+        res.setHeader('Retry-After', String(Math.ceil(WEBAUTHN_TTL_MS / 1000)));
+        return res.status(429).json({ ok: false, error: 'Ya existe un challenge de autenticación activo.' });
+      }
+      throw challengeError;
+    }
 
     return res.status(200).json(options);
   } catch (error) {
