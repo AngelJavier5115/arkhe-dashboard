@@ -74,8 +74,7 @@ export default async function handler(req, res) {
     const { count, error: countError } = await supabase
       .from('arkhe_human_credentials')
       .select('id', { count: 'exact', head: true })
-      .eq('investigator_id', ANGEL_ID)
-      .is('revoked_at', null);
+      .eq('investigator_id', ANGEL_ID);
 
     if (countError) throw countError;
 
