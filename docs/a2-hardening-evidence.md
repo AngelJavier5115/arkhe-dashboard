@@ -109,6 +109,9 @@ PASS | 2. Cuerpo alterado → firma rechazada
 PASS | 3. Atlas intentando presentarse como Aletheia → rechazado
 PASS | 4a. Primera petición con nonce → aceptada
 PASS | 4b. Repetición del mismo nonce → replay rechazado
+PASS | 5. Timestamp fuera de ventana → rechazado
+PASS | 6. Firma con clave incorrecta → rechazado
+Suite terminada: 7/7 PASS.
 ```
 
 Esta evidencia demuestra que la frontera criptográfica fue alcanzada por HTTP en el despliegue de auditoría y que las contrapruebas ejecutadas se comportaron según el diseño.
@@ -142,24 +145,26 @@ La suite adversarial HTTP fue ejecutada desde un Codespace sobre la rama `audit/
 
 Resultado observado:
 
-- 5/5 casos reportados como `PASS`;
+- 7/7 casos reportados como `PASS`;
 - 0 casos reportados como `FAIL`.
 
-La suite validó específicamente aceptación válida, integridad del cuerpo, separación de servicios y anti-replay persistente.
+Los siete resultados corresponden a seis pruebas conceptuales porque el anti-replay se observa en dos pasos separados: primer uso del nonce (4a) y repetición del mismo nonce (4b).
+
+La suite validó específicamente aceptación válida, integridad del cuerpo, separación de servicios, anti-replay persistente, frescura temporal y rechazo de una firma creada con una clave incorrecta.
 
 ## Límites actuales
 
 ### Timestamp fuera de ventana
 
-La frescura temporal está implementada y fue cubierta por la suite local de autenticación, pero **todavía no se ha registrado una contraprueba HTTP independiente contra el Core desplegado** con un timestamp deliberadamente fuera de ventana.
+La prueba HTTP contra el Core desplegado utilizó un timestamp deliberadamente 10 minutos atrás y fue rechazada.
 
-Estado: **PENDIENTE**.
+Estado: **DEMOSTRADO por HTTP**.
 
 ### Firma con clave incorrecta
 
-La firma con clave incorrecta está cubierta por las pruebas criptográficas locales, pero **todavía no se ha registrado una contraprueba HTTP independiente contra el Core desplegado**.
+La prueba HTTP contra el Core desplegado utilizó una clave Ed25519 aleatoria distinta de la clave pública configurada para Atlas y fue rechazada.
 
-Estado: **PENDIENTE**.
+Estado: **DEMOSTRADO por HTTP**.
 
 ### Integración de los bots en despliegue
 
@@ -192,7 +197,7 @@ Estado: **PENDIENTE**.
 - identidad lógica: **demostrado**;
 - identidad criptográfica del servicio: **demostrado localmente y por HTTP contra Core desplegado**;
 - integridad del mensaje: **demostrado localmente y por HTTP contra Core desplegado**;
-- frescura temporal: **demostrado localmente; HTTP desplegado pendiente**;
+- frescura temporal: **demostrado localmente y por HTTP contra Core desplegado**;
 - anti-replay persistente: **demostrado contra Supabase y por HTTP contra Core desplegado**;
 - suplantación cruzada entre servicios: **rechazada localmente y por HTTP contra Core desplegado**;
 - autorización del Core con firma: **demostrado por HTTP contra Core desplegado**;
@@ -210,13 +215,12 @@ Con la suite HTTP actual ya existe evidencia desplegada para:
 1. Atlas firmado → aceptar;
 2. cuerpo mutado después de firmar → rechazar;
 3. servicio cruzado / identidad falsificada → rechazar;
-4. nonce reutilizado → rechazar.
-
-Antes del cierre definitivo de A.2 todavía deben completarse las contrapruebas HTTP de:
-
+4. nonce reutilizado → rechazar;
 5. timestamp fuera de ventana → rechazar;
 6. firma con clave incorrecta → rechazar.
 
-Después deberá revisarse la integración real de los clientes de los tres bots, la procedencia independiente de modelo/proveedor, el resultado observable de CI y la limpieza de las credenciales temporales utilizadas en la auditoría.
+Las contrapruebas HTTP de autenticación, integridad, separación de servicios, anti-replay, frescura temporal y clave incorrecta ya tienen evidencia desplegada.
+
+Para el cierre definitivo todavía deberá revisarse la integración real de los clientes de los tres bots, la procedencia independiente de modelo/proveedor, el resultado observable de CI y la limpieza de las credenciales temporales utilizadas en la auditoría.
 
 Hasta completar esas evidencias, `main` permanece congelado respecto de este endurecimiento.
