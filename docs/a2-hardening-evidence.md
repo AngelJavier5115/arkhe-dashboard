@@ -199,6 +199,8 @@ Sin embargo, esta evidencia sigue siendo **atestación del servicio basada en la
 
 **Estado: DEMOSTRADO como provider-response-attested; procedencia independiente externa: PENDIENTE.**
 
+El detalle comparativo de las rutas OpenRouter, OpenAI, Gemini y Groq, y los niveles A/B/C de evidencia, quedó documentado en `docs/provider-provenance.md`.
+
 ### CI de GitHub
 
 El workflow de la rama existe y está configurado para ejecutarse en:
