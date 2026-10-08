@@ -82,6 +82,7 @@ export default async function handler(req, res) {
     const { rpID, origin } = getWebAuthnConfig();
     const clientData = decodeClientData(response);
     const challenge = await findUnusedChallenge(supabase, clientData.challenge);
+    await reserveChallengeAttempt(supabase, challenge.id);
 
     const { data: credential, error: credentialError } = await supabase
       .from('arkhe_human_credentials')
@@ -113,8 +114,6 @@ export default async function handler(req, res) {
     if (!verification.verified) {
       return res.status(401).json({ ok: false, error: 'Autenticación WebAuthn no verificada.' });
     }
-
-    await reserveChallengeAttempt(supabase, challenge.id);
 
     await consumeChallenge(supabase, challenge.id);
 
