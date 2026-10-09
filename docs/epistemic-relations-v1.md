@@ -22,7 +22,7 @@ Each row in \`public.arkhe_semantic_relations\` connects two distinct existing k
 
 - Both new tables have RLS enabled and public read-only policies, matching the public read-only graph experience.
 - \`anon\` and \`authenticated\` can select; they cannot insert, update, or delete.
-- Registration is available only through \`arkhe_register_semantic_relation\`, granted to \`service_role\`. That function validates endpoints, type, assertion, evidence, source identity, and provenance and writes a creation event transactionally.
+- The service-role key can select but has direct table \`INSERT\`/\`UPDATE\`/\`DELETE\` revoked; registration is available only through \`arkhe_register_semantic_relation\`, executable by \`service_role\`. That function validates endpoints, type, assertion, evidence, source identity, and provenance and writes a creation event transactionally.
 - Do not call the function from the browser. The follow-up API must authenticate the human/agent actor first and derive the actor identity server-side; A.4 human auth and A.2 signed investigator auth remain the permitted boundaries.
 - Existing tables/policies are not modified.
 - Existing \`ref_id\` values are not backfilled as semantic relations. No relation rows are seeded during this migration.

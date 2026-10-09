@@ -41,3 +41,11 @@ test('semantic relation registration function requires evidence and is not execu
   assert.match(migration, /revoke all on function public\.arkhe_register_semantic_relation/i);
   assert.match(migration, /grant execute on function public\.arkhe_register_semantic_relation[\s\S]*?to service_role/i);
 });
+
+
+test('service-role table DML is revoked so writes must use the registration RPC', () => {
+  const hardening = fs.readFileSync(new URL('../supabase/migrations/20261009211000_lock_semantic_relation_direct_writes.sql', import.meta.url), 'utf8');
+  assert.match(hardening, /revoke insert, update, delete, truncate, references, trigger[\s\S]*?from service_role/i);
+  assert.match(hardening, /grant select on table public\.arkhe_semantic_relations to service_role/i);
+  assert.match(hardening, /grant select on table public\.arkhe_semantic_relation_events to service_role/i);
+});
