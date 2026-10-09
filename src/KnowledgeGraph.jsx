@@ -89,6 +89,8 @@ export default function KnowledgeGraph({ nodesData = [], semanticRelations = [],
           <span>{counts.references} referencias explícitas</span>
           <span className="text-slate-700">·</span>
           <span>{counts.semantic} relaciones semánticas</span>
+          <span className="text-slate-700">·</span>
+          <span>{counts.disputed} en disputa</span>
         </div>
         <div className="flex items-center gap-1">
           <button type="button" onClick={() => fgRef.current?.zoom(1.3, 250)} className="graph-control" aria-label="Acercar grafo"><ZoomIn size={13} /></button>

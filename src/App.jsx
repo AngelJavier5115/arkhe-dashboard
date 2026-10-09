@@ -610,10 +610,12 @@ export default function App() {
         </div>
         <button type="button" onClick={() => loadData(true)} disabled={refreshing} className="mt-4 inline-flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-800/60 px-4 py-2.5 text-xs font-medium text-slate-200 transition hover:border-blue-300/30 hover:bg-slate-800 disabled:opacity-50"><RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} />Actualizar datos</button>
       </Panel>
-      <Panel title="Límites de esta versión" subtitle="Esta rama renueva la visualización sin cambiar reglas de gobernanza, autenticación, políticas RLS ni procedimientos de escritura.">
+      <Panel title="Límites de esta versión" subtitle="Esta rama amplía la lectura del conocimiento sin cambiar la gobernanza ni la autenticación existentes. Las tablas nuevas de relaciones usan RLS de solo lectura; el navegador no puede crear ni modificar relaciones.">
         <ul className="space-y-2 text-xs leading-6 text-slate-400">
           <li className="flex gap-2"><span className="text-emerald-300">✓</span>Lectura de investigaciones, áreas, investigadores, rondas, ideas y tareas.</li>
           <li className="flex gap-2"><span className="text-emerald-300">✓</span>Grafo seleccionable y navegación entre módulos.</li>
+          <li className="flex gap-2"><span className="text-emerald-300">✓</span>Lectura de relaciones semánticas persistidas con evidencia y procedencia.</li>
+          <li className="flex gap-2"><span className="text-amber-300">•</span>El alta y la revisión quedan pendientes del endpoint seguro integrado con A.2/A.4.</li>
           <li className="flex gap-2"><span className="text-amber-300">•</span>Las acciones de gobierno y autenticación permanecen separadas para su integración desde la auditoría A.4.</li>
         </ul>
       </Panel>
