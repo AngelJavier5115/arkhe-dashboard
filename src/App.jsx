@@ -255,6 +255,7 @@ export default function App() {
   const [activeView, setActiveView] = useState('inicio');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedNode, setSelectedNode] = useState(null);
+  const [focusedGraphNodeId, setFocusedGraphNodeId] = useState(null);
   const [selectedAreaId, setSelectedAreaId] = useState(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -344,10 +345,12 @@ export default function App() {
     setActiveView(view);
     setMobileMenuOpen(false);
     setSelectedNode(null);
+    setFocusedGraphNodeId(null);
   };
 
   const openNode = (node) => {
     setSelectedNode(node);
+    if (node?.id !== null && node?.id !== undefined) setFocusedGraphNodeId(String(node.id));
   };
 
   const quickActions = [
@@ -459,7 +462,7 @@ export default function App() {
           {loading && nodes.length === 0 ? (
             <div className="flex h-64 items-center justify-center gap-2 text-xs text-slate-500"><RefreshCw size={14} className="animate-spin" />Cargando grafo…</div>
           ) : (
-            <KnowledgeGraph nodesData={nodes} onNodeSelect={openNode} focusNodeId={selectedNode?.id ?? null} />
+            <KnowledgeGraph nodesData={nodes} onNodeSelect={openNode} focusNodeId={focusedGraphNodeId} />
           )}
         </Panel>
 
@@ -563,7 +566,7 @@ export default function App() {
       {selectedArea && <Panel title={selectedArea.nombre} subtitle={selectedArea.descripcion || 'Sin descripción registrada.'}>
         <p className="text-xs leading-6 text-slate-400">Proyectos vinculados en los registros consultados: {projects.filter(project => project.area_id === selectedArea.id).length}. Los aportes de la tabla de nodos no tienen un vínculo de área en el esquema actual, por lo que no se atribuyen automáticamente.</p>
       </Panel>}
-      <Panel title="Conexiones entre aportes" subtitle="La red mantiene su estructura propia: los vínculos proceden de las referencias registradas entre nodos."><KnowledgeGraph nodesData={nodes} onNodeSelect={openNode} focusNodeId={selectedNode?.id ?? null} /></Panel>
+      <Panel title="Conexiones entre aportes" subtitle="La red mantiene su estructura propia: los vínculos proceden de las referencias registradas entre nodos."><KnowledgeGraph nodesData={nodes} onNodeSelect={openNode} focusNodeId={focusedGraphNodeId} /></Panel>
     </>
   );
 
@@ -714,7 +717,7 @@ export default function App() {
                       {connection.direction === 'self' ? (
                         <p className="mt-2 text-[10px] leading-5 text-amber-200/80">Este registro se referencia a sí mismo en los datos. Se conserva para inspección, pero se omite como bucle en la visualización.</p>
                       ) : connection.neighborNode ? (
-                        <button type="button" onClick={() => setSelectedNode(connection.neighborNode)} className="mt-2 flex w-full items-center justify-between gap-3 rounded-lg border border-slate-800/80 px-3 py-2 text-left transition hover:border-blue-300/20 hover:bg-slate-800/50">
+                        <button type="button" onClick={() => openNode(connection.neighborNode)} className="mt-2 flex w-full items-center justify-between gap-3 rounded-lg border border-slate-800/80 px-3 py-2 text-left transition hover:border-blue-300/20 hover:bg-slate-800/50">
                           <span className="min-w-0"><span className="block text-[11px] font-medium text-slate-200">#{connection.neighborNode.id} · {getNodeTitle(connection.neighborNode)}</span><span className="mt-1 block text-[9px] text-slate-500">{connection.direction === 'outgoing' ? 'Este registro apunta hacia el nodo vinculado.' : 'Este registro es mencionado como destino de otro nodo.'}</span></span>
                           <ChevronRight size={14} className="shrink-0 text-slate-500" />
                         </button>
