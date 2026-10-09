@@ -7,6 +7,7 @@ import {
   RefreshCw, Search, Settings2, Sparkles, TreePine, Users, X
 } from 'lucide-react';
 import KnowledgeGraph from './KnowledgeGraph';
+import { getNodeConnections } from './epistemicGraphModel.js';
 import ArkheTree from './ArkheTree';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
@@ -458,7 +459,7 @@ export default function App() {
           {loading && nodes.length === 0 ? (
             <div className="flex h-64 items-center justify-center gap-2 text-xs text-slate-500"><RefreshCw size={14} className="animate-spin" />Cargando grafo…</div>
           ) : (
-            <KnowledgeGraph nodesData={nodes} onNodeSelect={openNode} />
+            <KnowledgeGraph nodesData={nodes} onNodeSelect={openNode} focusNodeId={selectedNode?.id ?? null} />
           )}
         </Panel>
 
@@ -562,7 +563,7 @@ export default function App() {
       {selectedArea && <Panel title={selectedArea.nombre} subtitle={selectedArea.descripcion || 'Sin descripción registrada.'}>
         <p className="text-xs leading-6 text-slate-400">Proyectos vinculados en los registros consultados: {projects.filter(project => project.area_id === selectedArea.id).length}. Los aportes de la tabla de nodos no tienen un vínculo de área en el esquema actual, por lo que no se atribuyen automáticamente.</p>
       </Panel>}
-      <Panel title="Conexiones entre aportes" subtitle="La red mantiene su estructura propia: los vínculos proceden de las referencias registradas entre nodos."><KnowledgeGraph nodesData={nodes} onNodeSelect={openNode} /></Panel>
+      <Panel title="Conexiones entre aportes" subtitle="La red mantiene su estructura propia: los vínculos proceden de las referencias registradas entre nodos."><KnowledgeGraph nodesData={nodes} onNodeSelect={openNode} focusNodeId={selectedNode?.id ?? null} /></Panel>
     </>
   );
 
@@ -607,6 +608,8 @@ export default function App() {
       </Panel>
     </>
   );
+
+  const selectedNodeConnections = selectedNode ? getNodeConnections(selectedNode, nodes) : [];
 
   const viewRenderers = {
     inicio: renderDashboard,
@@ -692,6 +695,41 @@ export default function App() {
             <div className="mt-5 max-h-[52vh] overflow-y-auto rounded-xl border border-slate-800 bg-slate-900/40 p-4 text-sm leading-7 text-slate-300 whitespace-pre-wrap">{getNodeText(selectedNode) || selectedNode.objetivo || selectedNode.pregunta || selectedNode.descripcion || 'Este registro no contiene texto adicional.'}</div>
             {selectedNode.estado && <div className="mt-4"><Badge tone={statusColors[statusKey(selectedNode.estado)]}>{selectedNode.estado}</Badge></div>}
             {selectedNode.dictamen_aletheia && <div className="mt-4"><p className="text-[10px] uppercase tracking-[0.2em] text-slate-500">Dictamen Aletheia</p><p className="mt-2 text-xs leading-6 text-slate-400">{selectedNode.dictamen_aletheia}</p></div>}
+            <section className="mt-5 border-t border-slate-800 pt-4">
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div>
+                  <h3 className="text-xs font-semibold text-slate-200">Conexiones de este nodo</h3>
+                  <p className="mt-1 max-w-lg text-[10px] leading-5 text-slate-500">Solo se muestran vínculos presentes en referencias o metadatos estructurados. La interfaz no infiere relaciones científicas a partir del texto.</p>
+                </div>
+                <Badge tone="neutral">{selectedNodeConnections.length} vínculos</Badge>
+              </div>
+              {selectedNodeConnections.length ? (
+                <div className="mt-3 space-y-2">
+                  {selectedNodeConnections.map(connection => (
+                    <article key={connection.id} className="rounded-xl border border-slate-800 bg-slate-900/45 p-3">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <Badge tone={connection.kind === 'semantic' ? (connection.type === 'contradicts' ? 'red' : connection.type === 'supports' ? 'green' : 'violet') : 'blue'}>{connection.label}</Badge>
+                        <span className="text-[9px] uppercase tracking-[0.15em] text-slate-600">{connection.direction === 'outgoing' ? 'Salida' : connection.direction === 'incoming' ? 'Entrada' : 'Autorreferencia'}</span>
+                      </div>
+                      {connection.direction === 'self' ? (
+                        <p className="mt-2 text-[10px] leading-5 text-amber-200/80">Este registro se referencia a sí mismo en los datos. Se conserva para inspección, pero se omite como bucle en la visualización.</p>
+                      ) : connection.neighborNode ? (
+                        <button type="button" onClick={() => setSelectedNode(connection.neighborNode)} className="mt-2 flex w-full items-center justify-between gap-3 rounded-lg border border-slate-800/80 px-3 py-2 text-left transition hover:border-blue-300/20 hover:bg-slate-800/50">
+                          <span className="min-w-0"><span className="block text-[11px] font-medium text-slate-200">#{connection.neighborNode.id} · {getNodeTitle(connection.neighborNode)}</span><span className="mt-1 block text-[9px] text-slate-500">{connection.direction === 'outgoing' ? 'Este registro apunta hacia el nodo vinculado.' : 'Este registro es mencionado como destino de otro nodo.'}</span></span>
+                          <ChevronRight size={14} className="shrink-0 text-slate-500" />
+                        </button>
+                      ) : (
+                        <p className="mt-2 text-[10px] leading-5 text-amber-200/80">Destino #{connection.neighborId}: el registro no está incluido en los datos cargados, por lo que no se dibuja un nodo inventado.</p>
+                      )}
+                      {connection.evidence && <p className="mt-2 whitespace-pre-wrap text-[10px] leading-5 text-slate-400"><span className="text-slate-500">Nota/evidencia declarada: </span>{connection.evidence}</p>}
+                      <p className="mt-2 text-[9px] leading-4 text-slate-600">{connection.kind === 'reference' ? 'Referencia explícita; su significado semántico no está especificado.' : connection.verified ? 'Los metadatos marcan esta relación como verificada; eso no constituye una verificación independiente automática.' : 'Relación semántica declarada en metadatos; aún no marcada como verificada.'}</p>
+                    </article>
+                  ))}
+                </div>
+              ) : (
+                <div className="mt-3 rounded-xl border border-dashed border-slate-800 px-3 py-4 text-[10px] leading-5 text-slate-500">No hay conexiones explícitas disponibles para este registro en el conjunto cargado. Eso no demuestra que no exista una relación conceptual.</div>
+              )}
+            </section>
             <div className="mt-5 flex justify-end"><button type="button" onClick={() => setSelectedNode(null)} className="rounded-xl border border-slate-700 px-4 py-2 text-xs text-slate-200 hover:bg-slate-800">Cerrar</button></div>
           </section>
         </div>
