@@ -49,3 +49,24 @@ test('service-role table DML is revoked so writes must use the registration RPC'
   assert.match(hardening, /grant select on table public\.arkhe_semantic_relations to service_role/i);
   assert.match(hardening, /grant select on table public\.arkhe_semantic_relation_events to service_role/i);
 });
+
+
+test('write API migration constrains review authors, supersession scope, direct write privileges, and actor throttles', () => {
+  const apiMigration = fs.readFileSync(new URL('../supabase/migrations/20261009214326_semantic_relation_write_api.sql', import.meta.url), 'utf8');
+  assert.match(apiMigration, /arkhe_append_semantic_relation_event/i);
+  assert.match(apiMigration, /p_actor_kind is distinct from 'human'/i);
+  assert.match(apiMigration, /previous_relation\.source_node_id = p_source_node_id/i);
+  assert.match(apiMigration, /arkhe_reserve_semantic_write/i);
+  assert.match(apiMigration, /request_count < 30/i);
+  assert.match(apiMigration, /revoke all on table public\.arkhe_semantic_write_windows from public, anon, authenticated, service_role/i);
+  assert.match(apiMigration, /revoke all on function public\.arkhe_append_semantic_relation_event/i);
+  assert.match(apiMigration, /grant execute on function public\.arkhe_append_semantic_relation_event[\s\S]*?to service_role/i);
+});
+
+
+test('post-API hardening migration restores RPC-only table writes after the base function migration', () => {
+  const relock = fs.readFileSync(new URL('../supabase/migrations/20261009214834_relock_semantic_relation_direct_writes_after_api_migration.sql', import.meta.url), 'utf8');
+  assert.match(relock, /revoke insert, update, delete, truncate, references, trigger[\s\S]*?on table public\.arkhe_semantic_relations[\s\S]*?from service_role/i);
+  assert.match(relock, /revoke insert, update, delete, truncate, references, trigger[\s\S]*?on table public\.arkhe_semantic_relation_events[\s\S]*?from service_role/i);
+  assert.match(relock, /revoke all on table public\.arkhe_semantic_write_windows[\s\S]*?from public, anon, authenticated, service_role/i);
+});

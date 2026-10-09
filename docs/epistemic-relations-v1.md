@@ -29,9 +29,9 @@ Each row in \`public.arkhe_semantic_relations\` connects two distinct existing k
 
 ## Rollout stages
 
-1. Schema and read-only graph ingestion (this migration).
-2. Secure authenticated registration/review endpoint on the server, integrated with A.2/A.4.
-3. UI creation/review tools behind that endpoint.
-4. Adversarial tests for forged actor, unauthorized direct RPC, incomplete evidence, replay, malformed provenance, invalid node IDs, and superseding history.
+1. Schema and read-only graph ingestion (applied to the Arkhé Supabase project).
+2. Server endpoint and database RPCs are implemented in the design branch. The endpoint requires either a signed A.2 investigator request with a one-use nonce or an A.4 human session with recent WebAuthn reauthentication. It has a fixed-window write limit and does not accept actor identity from the request body.
+3. The creation/review form and same-origin A.4 login flow are not yet integrated into this design Preview. Preview runtime also remains gated on branch-specific server environment configuration.
+4. GitHub Actions now exercises adversarial cases for forged actor fields, invalid/stale signatures, nonce replay, missing/recent human reauthentication, invalid relation input, governed review events, and write throttling. A live signed-request smoke test is still pending.
 
-The schema exists after stage 1, but no semantic relationship is considered recorded until the authorized registration endpoint writes it. The new tables are initially empty.
+No semantic relation is seeded by the migration. The tables remain empty until the authenticated registration endpoint accepts a proposal. A persisted proposal is not automatically reviewed or scientifically validated.

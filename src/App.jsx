@@ -806,7 +806,9 @@ export default function App() {
                               <li key={event.id} className="border-l border-slate-700 pl-2.5 text-[10px] leading-4">
                                 <span className="text-slate-300">{String(event.event_type || '').replaceAll('_', ' ')}</span>
                                 <span className="block text-slate-600">{formatDate(event.created_at, true)} · {investigators.find(person => person.id === event.actor_investigator_id)?.nombre || event.actor_kind || 'Actor no especificado'}</span>
-                                {event.event_payload?.note && <span className="mt-1 block text-slate-500">{event.event_payload.note}</span>}
+                                {event.event_payload?.note && <span className="mt-1 block whitespace-pre-wrap text-slate-500">{event.event_payload.note}</span>}
+                                {event.event_payload?.evidence_text && <span className="mt-1 block whitespace-pre-wrap text-slate-400">Evidencia añadida: {event.event_payload.evidence_text}</span>}
+                                {event.event_payload?.evidence_uri && <a href={event.event_payload.evidence_uri} target="_blank" rel="noreferrer" className="mt-1 block break-all text-blue-300 underline underline-offset-2">Consultar evidencia</a>}
                               </li>
                             ))}
                           </ol>
