@@ -1,110 +1,124 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import ForceGraph2D from 'react-force-graph-2d';
+import { CircleHelp, Focus, Network, ZoomIn, ZoomOut } from 'lucide-react';
 
-// Mapeo de colores tolerant a mayúsculas/minúsculas
 const STATUS_COLORS = {
-  corroborado: '#22c55e',
-  Corroborado: '#22c55e',
-  falsado: '#ef4444',
-  Falsado: '#ef4444',
-  ruido: '#eab308',
-  Ruido: '#eab308',
-  postulado: '#3b82f6',
-  Postulado: '#3b82f6',
+  corroborado: '#59d6a6',
+  falsado: '#f27691',
+  ruido: '#f4bd55',
+  postulado: '#72a7ff',
 };
 
-export default function KnowledgeGraph({ nodesData }) {
-  const fgRef = useRef();
+function statusKey(status) {
+  const normalized = String(status ?? '').toLowerCase();
+  if (normalized.includes('corrobor')) return 'corroborado';
+  if (normalized.includes('fals')) return 'falsado';
+  if (normalized.includes('ruido')) return 'ruido';
+  return 'postulado';
+}
 
-  // Mapear los datos de Supabase al formato requerido por react-force-graph
-  const graphData = React.useMemo(() => {
-    if (!nodesData || nodesData.length === 0) return { nodes: [], links: [] };
-
-    const nodes = nodesData.map((node) => ({
-      id: node.id,
-      name: `#${node.id} ${node.tipo || 'nodo'}`,
+export default function KnowledgeGraph({ nodesData = [], onNodeSelect }) {
+  const fgRef = useRef(null);
+  const containerRef = useRef(null);
+  const [dimensions, setDimensions] = useState({ width: 1, height: 280 });
+  const graphData = useMemo(() => {
+    const ids = new Set(nodesData.map(node => String(node.id)));
+    const nodes = nodesData.map(node => ({
+      id: String(node.id),
+      name: '#' + node.id + ' ' + (node.tipo || 'aporte'),
+      title: node.contenido || node.texto || node.descripcion || '',
+      sourceNode: node,
       val: 5,
-      color: STATUS_COLORS[node.estado] || STATUS_COLORS[node.estado?.toLowerCase()] || '#94a3b8',
-      estado: node.estado,
+      color: STATUS_COLORS[statusKey(node.estado)] || '#94a3b8',
     }));
-
     const links = nodesData
-      .filter((node) => node.ref_id)
-      .map((node) => ({
-        source: node.id,
-        target: node.ref_id,
-      }));
-
+      .filter(node => node.ref_id && ids.has(String(node.ref_id)))
+      .map(node => ({ source: String(node.id), target: String(node.ref_id) }));
     return { nodes, links };
   }, [nodesData]);
 
   useEffect(() => {
-    if (fgRef.current && graphData.nodes.length > 0) {
-      fgRef.current.zoomToFit(400, 50);
+    const container = containerRef.current;
+    if (!container) return undefined;
+    const updateSize = () => {
+      const rect = container.getBoundingClientRect();
+      setDimensions({
+        width: Math.max(1, Math.floor(rect.width)),
+        height: Math.max(1, Math.floor(rect.height)),
+      });
+    };
+    updateSize();
+    if (typeof ResizeObserver === 'undefined') {
+      window.addEventListener('resize', updateSize);
+      return () => window.removeEventListener('resize', updateSize);
     }
-  }, [graphData]);
+    const observer = new ResizeObserver(updateSize);
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    if (fgRef.current && graphData.nodes.length > 0 && dimensions.width > 1) {
+      const timer = window.setTimeout(() => fgRef.current?.zoomToFit(420, 42), 120);
+      return () => window.clearTimeout(timer);
+    }
+    return undefined;
+  }, [graphData, dimensions.width, dimensions.height]);
 
   if (graphData.nodes.length === 0) {
     return (
-      <div className="bg-slate-900 border border-slate-800 rounded-xl p-8 text-center text-slate-500 text-xs">
-        No hay nodos suficientes para renderizar el grafo.
+      <div className="flex h-64 flex-col items-center justify-center rounded-xl border border-dashed border-slate-700/80 bg-slate-950/40 px-5 text-center">
+        <Network size={22} className="mb-3 text-slate-600" />
+        <p className="text-xs font-medium text-slate-300">La red todavía está vacía</p>
+        <p className="mt-1 max-w-xs text-[10px] leading-5 text-slate-600">Cuando existan aportes disponibles, sus referencias aparecerán aquí.</p>
       </div>
     );
   }
 
   return (
-    <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 overflow-hidden relative">
-      <div className="flex items-center justify-between mb-3">
-        <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></span>
-          Red Epistémica (Grafo Interactivo)
-        </h2>
-        <div className="flex items-center gap-3 text-[10px]">
-          <span className="flex items-center gap-1 text-blue-400">
-            <span className="w-2 h-2 rounded-full bg-blue-500"></span> Postulado
-          </span>
-          <span className="flex items-center gap-1 text-emerald-400">
-            <span className="w-2 h-2 rounded-full bg-emerald-500"></span> Corroborado
-          </span>
-          <span className="flex items-center gap-1 text-rose-400">
-            <span className="w-2 h-2 rounded-full bg-rose-500"></span> Falsado
-          </span>
-          <span className="flex items-center gap-1 text-amber-400">
-            <span className="w-2 h-2 rounded-full bg-amber-500"></span> Ruido
-          </span>
+    <div className="min-w-0">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <div className="inline-flex items-center gap-2 text-[10px] text-slate-500"><span className="h-1.5 w-1.5 rounded-full bg-blue-300" />{graphData.nodes.length} nodos <span className="text-slate-700">·</span> {graphData.links.length} vínculos explícitos</div>
+        <div className="flex items-center gap-1">
+          <button type="button" onClick={() => fgRef.current?.zoom(1.3, 250)} className="graph-control" aria-label="Acercar grafo"><ZoomIn size={13} /></button>
+          <button type="button" onClick={() => fgRef.current?.zoom(0.75, 250)} className="graph-control" aria-label="Alejar grafo"><ZoomOut size={13} /></button>
+          <button type="button" onClick={() => fgRef.current?.zoomToFit(350, 42)} className="graph-control" aria-label="Centrar grafo"><Focus size={13} /></button>
         </div>
       </div>
-
-      <div className="h-64 sm:h-80 w-full bg-slate-950 rounded-lg overflow-hidden border border-slate-800/50">
+      <div ref={containerRef} className="graph-canvas relative h-[280px] min-w-0 overflow-hidden rounded-xl border border-slate-800/80 sm:h-[340px]">
         <ForceGraph2D
           ref={fgRef}
           graphData={graphData}
-          nodeColor={(node) => node.color}
-          nodeRelSize={6}
-          linkColor={() => '#475569'}
-          linkWidth={1.5}
-          linkDirectionalParticles={2}
-          linkDirectionalParticleSpeed={0.005}
-          linkDirectionalParticleWidth={2}
-          linkDirectionalParticleColor={() => '#818cf8'}
+          width={dimensions.width}
+          height={dimensions.height}
+          backgroundColor="rgba(3, 9, 21, 0)"
+          onNodeClick={node => onNodeSelect?.(node.sourceNode)}
+          nodeColor={node => node.color}
+          nodeRelSize={4.5}
+          nodeVal={node => node.val}
+          linkColor={() => 'rgba(109, 132, 170, .45)'}
+          linkWidth={1.2}
+          linkDirectionalParticles={1}
+          linkDirectionalParticleSpeed={0.003}
+          linkDirectionalParticleWidth={1.5}
+          linkDirectionalParticleColor={() => '#9f9aff'}
+          cooldownTicks={90}
+          onEngineStop={() => fgRef.current?.zoomToFit(250, 42)}
+          nodeCanvasObjectMode={() => 'after'}
           nodeCanvasObject={(node, ctx, globalScale) => {
+            if (globalScale < 0.55) return;
             const label = node.name;
-            const fontSize = 12 / globalScale;
-            ctx.font = `${fontSize}px Sans-Serif`;
-            
-            // Dibujar círculo del nodo
-            ctx.beginPath();
-            ctx.arc(node.x, node.y, 6, 0, 2 * Math.PI, false);
-            ctx.fillStyle = node.color;
-            ctx.fill();
-
-            // Dibujar etiqueta debajo
+            const fontSize = Math.max(3, Math.min(9, 9 / Math.sqrt(globalScale)));
+            ctx.font = '500 ' + fontSize + 'px Inter, ui-sans-serif, system-ui, sans-serif';
             ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillStyle = '#cbd5e1';
-            ctx.fillText(label, node.x, node.y + 10);
+            ctx.textBaseline = 'top';
+            ctx.fillStyle = 'rgba(219, 231, 249, .9)';
+            ctx.fillText(label, node.x, node.y + 7);
           }}
         />
+        <div className="pointer-events-none absolute bottom-3 left-3 rounded-lg border border-slate-700/70 bg-slate-950/75 px-2.5 py-1.5 text-[9px] text-slate-500 backdrop-blur">
+          <span className="inline-flex items-center gap-1.5"><CircleHelp size={11} />Toca un nodo para abrir su detalle</span>
+        </div>
       </div>
     </div>
   );
