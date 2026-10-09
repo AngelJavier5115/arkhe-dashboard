@@ -1,0 +1,22 @@
+name: A.4 Human Auth Audit
+
+on:
+  push:
+    branches:
+      - audit/a4-human-auth
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  human-auth:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm install --no-audit --no-fund
+      - run: npm run build
+      - run: npm test
