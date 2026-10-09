@@ -246,6 +246,8 @@ function ResearchCard({ project, onClick, areaName }) {
 
 export default function App() {
   const [nodes, setNodes] = useState([]);
+  const [semanticRelations, setSemanticRelations] = useState([]);
+  const [relationEvents, setRelationEvents] = useState([]);
   const [investigators, setInvestigators] = useState([]);
   const [areas, setAreas] = useState([]);
   const [projects, setProjects] = useState([]);
@@ -267,7 +269,7 @@ export default function App() {
     else setLoading(true);
     setLoadError('');
 
-    const [nodeResult, investigatorResult, areaResult, projectResult, roundResult, ideaResult, taskResult] = await Promise.all([
+    const [nodeResult, investigatorResult, areaResult, projectResult, roundResult, ideaResult, taskResult, relationResult, relationEventResult] = await Promise.all([
       supabase.from('investigaciones').select('*').order('created_at', { ascending: false }).limit(100),
       supabase.from('investigadores').select('id, nombre, tipo, descripcion, estado, ultima_actividad, created_at').order('created_at', { ascending: true }),
       supabase.from('areas_arkhe').select('id, nombre, descripcion, area_padre_id, activa, created_at').eq('activa', true).order('created_at', { ascending: true }),
@@ -275,6 +277,8 @@ export default function App() {
       supabase.from('rondas_investigacion').select('id, numero, tipo, estado, pregunta, investigacion_id, created_at, updated_at, conclusion').order('created_at', { ascending: false }).limit(16),
       supabase.from('ideas').select('id, detalle, analisis, fecha').order('fecha', { ascending: false }).limit(12),
       supabase.from('tareas').select('id, descripcion, estado').order('id', { ascending: false }).limit(16),
+      supabase.from('arkhe_semantic_relations').select('id, source_node_id, target_node_id, relation_type, assertion, evidence_text, evidence_node_id, evidence_uri, created_by_investigator_id, origin_kind, origin_channel, provider, model, run_ref, provenance, supersedes_relation_id, created_at').order('created_at', { ascending: false }).limit(500),
+      supabase.from('arkhe_semantic_relation_events').select('id, relation_id, event_type, actor_investigator_id, actor_kind, event_payload, created_at').order('created_at', { ascending: false }).limit(1000),
     ]);
 
     if (nodeResult.error) {
@@ -291,8 +295,10 @@ export default function App() {
     setRounds(roundResult.error ? [] : roundResult.data ?? []);
     setIdeas(ideaResult.error ? [] : ideaResult.data ?? []);
     setTasks(taskResult.error ? [] : taskResult.data ?? []);
+    setSemanticRelations(relationResult.error ? [] : relationResult.data ?? []);
+    setRelationEvents(relationEventResult.error ? [] : relationEventResult.data ?? []);
 
-    const nonCriticalErrors = [investigatorResult, areaResult, projectResult, roundResult, ideaResult, taskResult].filter(x => x.error);
+    const nonCriticalErrors = [investigatorResult, areaResult, projectResult, roundResult, ideaResult, taskResult, relationResult, relationEventResult].filter(x => x.error);
     if (nonCriticalErrors.length) setLoadError('Algunos módulos no pudieron cargarse; la red epistémica sigue disponible con los datos accesibles.');
     if (!quiet) setLoading(false);
     setRefreshing(false);
@@ -303,6 +309,8 @@ export default function App() {
     const subscription = supabase
       .channel('arkhe-dashboard-live')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'investigaciones' }, () => loadData(true))
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'arkhe_semantic_relations' }, () => loadData(true))
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'arkhe_semantic_relation_events' }, () => loadData(true))
       .subscribe();
     return () => supabase.removeChannel(subscription);
   }, [loadData]);
@@ -462,7 +470,7 @@ export default function App() {
           {loading && nodes.length === 0 ? (
             <div className="flex h-64 items-center justify-center gap-2 text-xs text-slate-500"><RefreshCw size={14} className="animate-spin" />Cargando grafo…</div>
           ) : (
-            <KnowledgeGraph nodesData={nodes} onNodeSelect={openNode} focusNodeId={focusedGraphNodeId} />
+            <KnowledgeGraph nodesData={nodes} semanticRelations={semanticRelations} relationEvents={relationEvents} onNodeSelect={openNode} focusNodeId={focusedGraphNodeId} />
           )}
         </Panel>
 
@@ -566,7 +574,7 @@ export default function App() {
       {selectedArea && <Panel title={selectedArea.nombre} subtitle={selectedArea.descripcion || 'Sin descripción registrada.'}>
         <p className="text-xs leading-6 text-slate-400">Proyectos vinculados en los registros consultados: {projects.filter(project => project.area_id === selectedArea.id).length}. Los aportes de la tabla de nodos no tienen un vínculo de área en el esquema actual, por lo que no se atribuyen automáticamente.</p>
       </Panel>}
-      <Panel title="Conexiones entre aportes" subtitle="La red mantiene su estructura propia: los vínculos proceden de las referencias registradas entre nodos."><KnowledgeGraph nodesData={nodes} onNodeSelect={openNode} focusNodeId={focusedGraphNodeId} /></Panel>
+      <Panel title="Conexiones entre aportes" subtitle="La red mantiene su estructura propia: los vínculos proceden de las referencias registradas entre nodos."><KnowledgeGraph nodesData={nodes} semanticRelations={semanticRelations} relationEvents={relationEvents} onNodeSelect={openNode} focusNodeId={focusedGraphNodeId} /></Panel>
     </>
   );
 
@@ -612,7 +620,44 @@ export default function App() {
     </>
   );
 
-  const selectedNodeConnections = selectedNode ? getNodeConnections(selectedNode, nodes) : [];
+  const selectedNodeConnections = selectedNode ? getNodeConnections(selectedNode, nodes, semanticRelations, relationEvents) : [];
+  const modalOpen = Boolean(selectedNode);
+
+  useEffect(() => {
+    if (!modalOpen) return undefined;
+    const body = document.body;
+    const root = document.documentElement;
+    const scrollY = window.scrollY;
+    const previousBody = {
+      position: body.style.position,
+      top: body.style.top,
+      width: body.style.width,
+      overflow: body.style.overflow,
+    };
+    const previousRootOverflow = root.style.overflow;
+
+    // iOS Safari otherwise lets touch scrolling escape the modal into the page below.
+    body.style.position = 'fixed';
+    body.style.top = '-' + scrollY + 'px';
+    body.style.width = '100%';
+    body.style.overflow = 'hidden';
+    root.style.overflow = 'hidden';
+
+    const handleKeyDown = event => {
+      if (event.key === 'Escape') setSelectedNode(null);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      body.style.position = previousBody.position;
+      body.style.top = previousBody.top;
+      body.style.width = previousBody.width;
+      body.style.overflow = previousBody.overflow;
+      root.style.overflow = previousRootOverflow;
+      window.scrollTo(0, scrollY);
+    };
+  }, [modalOpen]);
 
   const viewRenderers = {
     inicio: renderDashboard,
@@ -689,13 +734,13 @@ export default function App() {
       </div>
 
       {selectedNode && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/75 p-0 backdrop-blur-sm sm:items-center sm:p-4" role="presentation" onClick={e => { if (e.target === e.currentTarget) setSelectedNode(null); }}>
-          <section role="dialog" aria-modal="true" aria-labelledby="node-dialog-title" className="w-full max-w-2xl rounded-t-2xl border border-slate-700 bg-slate-950 p-5 shadow-2xl shadow-black/40 sm:rounded-2xl sm:p-6">
+        <div className="fixed inset-0 z-50 flex items-end justify-center overflow-hidden bg-slate-950/80 p-0 backdrop-blur-sm sm:items-center sm:p-4" role="presentation" onClick={e => { if (e.target === e.currentTarget) setSelectedNode(null); }}>
+          <section role="dialog" aria-modal="true" aria-labelledby="node-dialog-title" className="w-full max-h-[92dvh] max-w-2xl overflow-y-auto overscroll-contain touch-pan-y rounded-t-2xl border border-slate-700 bg-slate-950 p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] shadow-2xl shadow-black/40 sm:rounded-2xl sm:p-6">
             <div className="flex items-start justify-between gap-4">
               <div className="min-w-0"><p className="text-[10px] uppercase tracking-[0.2em] text-blue-300">Detalle del registro</p><h2 id="node-dialog-title" className="mt-2 text-lg font-semibold text-white">{getNodeTitle(selectedNode)}</h2><p className="mt-1 text-[10px] text-slate-500">ID: {selectedNode.id} · {formatDate(selectedNode.created_at)}</p></div>
               <button type="button" onClick={() => setSelectedNode(null)} aria-label="Cerrar detalle" className="rounded-xl border border-slate-700 p-2 text-slate-400 hover:text-white"><X size={16} /></button>
             </div>
-            <div className="mt-5 max-h-[52vh] overflow-y-auto rounded-xl border border-slate-800 bg-slate-900/40 p-4 text-sm leading-7 text-slate-300 whitespace-pre-wrap">{getNodeText(selectedNode) || selectedNode.objetivo || selectedNode.pregunta || selectedNode.descripcion || 'Este registro no contiene texto adicional.'}</div>
+            <div className="mt-5 rounded-xl border border-slate-800 bg-slate-900/40 p-4 text-sm leading-7 text-slate-300 whitespace-pre-wrap break-words">{getNodeText(selectedNode) || selectedNode.objetivo || selectedNode.pregunta || selectedNode.descripcion || 'Este registro no contiene texto adicional.'}</div>
             {selectedNode.estado && <div className="mt-4"><Badge tone={statusColors[statusKey(selectedNode.estado)]}>{selectedNode.estado}</Badge></div>}
             {selectedNode.dictamen_aletheia && <div className="mt-4"><p className="text-[10px] uppercase tracking-[0.2em] text-slate-500">Dictamen Aletheia</p><p className="mt-2 text-xs leading-6 text-slate-400">{selectedNode.dictamen_aletheia}</p></div>}
             <section className="mt-5 border-t border-slate-800 pt-4">
@@ -724,8 +769,48 @@ export default function App() {
                       ) : (
                         <p className="mt-2 text-[10px] leading-5 text-amber-200/80">Destino #{connection.neighborId}: el registro no está incluido en los datos cargados, por lo que no se dibuja un nodo inventado.</p>
                       )}
-                      {connection.evidence && <p className="mt-2 whitespace-pre-wrap text-[10px] leading-5 text-slate-400"><span className="text-slate-500">Nota/evidencia declarada: </span>{connection.evidence}</p>}
-                      <p className="mt-2 text-[9px] leading-4 text-slate-600">{connection.kind === 'reference' ? 'Referencia explícita; su significado semántico no está especificado.' : connection.verified ? 'Los metadatos marcan esta relación como verificada; eso no constituye una verificación independiente automática.' : 'Relación semántica declarada en metadatos; aún no marcada como verificada.'}</p>
+                      {connection.assertion && <p className="mt-3 whitespace-pre-wrap text-[11px] leading-5 text-slate-300"><span className="text-slate-500">Afirmación: </span>{connection.assertion}</p>}
+                      {connection.evidence && <p className="mt-2 whitespace-pre-wrap text-[10px] leading-5 text-slate-400"><span className="text-slate-500">Evidencia / fundamento declarado: </span>{connection.evidence}</p>}
+                      {connection.evidenceNodeId && (
+                        <div className="mt-2 text-[10px]">
+                          {nodes.some(item => String(item.id) === String(connection.evidenceNodeId)) ? (
+                            <button type="button" onClick={() => { const evidenceNode = nodes.find(item => String(item.id) === String(connection.evidenceNodeId)); if (evidenceNode) openNode(evidenceNode); }} className="text-blue-300 underline underline-offset-2 hover:text-white">Abrir nodo de evidencia #{connection.evidenceNodeId}</button>
+                          ) : <span className="text-slate-500">Nodo de evidencia registrado: #{connection.evidenceNodeId}</span>}
+                        </div>
+                      )}
+                      {connection.evidenceUri && <a href={connection.evidenceUri} target="_blank" rel="noreferrer" className="mt-2 block break-all text-[10px] text-blue-300 underline underline-offset-2">Consultar fuente externa</a>}
+                      {connection.relationId && (
+                        <div className="mt-3 grid gap-1.5 rounded-lg border border-slate-800 bg-slate-950/60 p-3 text-[10px] text-slate-500">
+                          <p><span className="text-slate-400">ID de relación: </span><code className="break-all">{connection.relationId}</code></p>
+                          <p><span className="text-slate-400">Estado de revisión: </span>{connection.reviewLabel || 'Propuesta'}</p>
+                          <p><span className="text-slate-400">Origen: </span>{connection.originKind || 'No especificado'}{connection.originChannel ? ' · ' + connection.originChannel : ''}</p>
+                          {connection.createdByInvestigatorId && <p><span className="text-slate-400">Registrada por: </span>{investigators.find(person => person.id === connection.createdByInvestigatorId)?.nombre || connection.createdByInvestigatorId}</p>}
+                          {connection.createdAt && <p><span className="text-slate-400">Fecha: </span>{formatDate(connection.createdAt, true)}</p>}
+                          {(connection.provider || connection.model || connection.runRef) && <p><span className="text-slate-400">Procedencia técnica: </span>{[connection.provider, connection.model, connection.runRef].filter(Boolean).join(' · ')}</p>}
+                          {connection.supersedesRelationId && <p><span className="text-slate-400">Sustituye a: </span><code className="break-all">{connection.supersedesRelationId}</code></p>}
+                        </div>
+                      )}
+                      {connection.provenance && Object.keys(connection.provenance).length > 0 && (
+                        <details className="mt-2 rounded-lg border border-slate-800/80 px-3 py-2">
+                          <summary className="cursor-pointer text-[10px] text-slate-400">Detalles de procedencia</summary>
+                          <pre className="mt-2 overflow-x-auto whitespace-pre-wrap break-words text-[9px] leading-4 text-slate-500">{JSON.stringify(connection.provenance, null, 2)}</pre>
+                        </details>
+                      )}
+                      {connection.events?.length > 0 && (
+                        <details className="mt-2 rounded-lg border border-slate-800/80 px-3 py-2">
+                          <summary className="cursor-pointer text-[10px] text-slate-400">Historial ({connection.events.length} eventos)</summary>
+                          <ol className="mt-2 space-y-2">
+                            {connection.events.slice(-6).reverse().map(event => (
+                              <li key={event.id} className="border-l border-slate-700 pl-2.5 text-[10px] leading-4">
+                                <span className="text-slate-300">{String(event.event_type || '').replaceAll('_', ' ')}</span>
+                                <span className="block text-slate-600">{formatDate(event.created_at, true)} · {investigators.find(person => person.id === event.actor_investigator_id)?.nombre || event.actor_kind || 'Actor no especificado'}</span>
+                                {event.event_payload?.note && <span className="mt-1 block text-slate-500">{event.event_payload.note}</span>}
+                              </li>
+                            ))}
+                          </ol>
+                        </details>
+                      )}
+                      <p className="mt-3 text-[9px] leading-4 text-slate-600">{connection.kind === 'reference' ? 'Referencia explícita; su significado semántico no está especificado.' : connection.reviewStatus === 'reviewed' ? 'La relación consta como revisada; esto no equivale a una verificación científica independiente.' : connection.reviewStatus === 'disputed' ? 'Existe un evento que marca esta relación como discutida; consulta el historial antes de utilizarla.' : connection.reviewStatus === 'rejected' ? 'Esta relación fue rechazada en el historial y se conserva para trazabilidad.' : connection.reviewStatus === 'superseded' ? 'Esta relación fue sustituida por una versión posterior; se conserva para trazabilidad.' : connection.metadataOrigin ? 'Relación declarada en metadatos heredados; su evidencia y procedencia pueden no estar normalizadas.' : 'Afirmación semántica registrada como propuesta; aún no consta una revisión posterior.'}</p>
                     </article>
                   ))}
                 </div>

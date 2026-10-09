@@ -3,7 +3,7 @@ import ForceGraph2D from 'react-force-graph-2d';
 import { Focus, HelpCircle, Network, ZoomIn, ZoomOut } from 'lucide-react';
 import { buildEpistemicGraph, relationLegend } from './epistemicGraphModel.js';
 
-export default function KnowledgeGraph({ nodesData = [], onNodeSelect, focusNodeId = null }) {
+export default function KnowledgeGraph({ nodesData = [], semanticRelations = [], relationEvents = [], onNodeSelect, focusNodeId = null }) {
   const fgRef = useRef(null);
   const containerRef = useRef(null);
   const [dimensions, setDimensions] = useState({ width: 1, height: 280 });
@@ -13,7 +13,7 @@ export default function KnowledgeGraph({ nodesData = [], onNodeSelect, focusNode
     setLocalFocusId(focusNodeId === null || focusNodeId === undefined ? null : String(focusNodeId));
   }, [focusNodeId]);
 
-  const model = useMemo(() => buildEpistemicGraph(nodesData), [nodesData]);
+  const model = useMemo(() => buildEpistemicGraph(nodesData, semanticRelations, relationEvents), [nodesData, semanticRelations, relationEvents]);
   const graphData = useMemo(() => ({
     nodes: model.nodes,
     // A self-reference remains visible in the inspector, but a loop on one
@@ -39,6 +39,7 @@ export default function KnowledgeGraph({ nodesData = [], onNodeSelect, focusNode
   const counts = useMemo(() => ({
     references: graphData.links.filter(link => link.kind === 'reference').length,
     semantic: graphData.links.filter(link => link.kind === 'semantic').length,
+    disputed: graphData.links.filter(link => link.reviewStatus === 'disputed').length,
   }), [graphData.links]);
 
   useEffect(() => {
@@ -121,7 +122,7 @@ export default function KnowledgeGraph({ nodesData = [], onNodeSelect, focusNode
           nodeColor={node => activeNodeId && !focusState.nodeIds.has(node.id) ? 'rgba(72, 86, 113, .28)' : node.color}
           nodeRelSize={4.8}
           nodeVal={node => node.val}
-          linkColor={link => activeNodeId && !focusState.linkIds.has(link.id) ? 'rgba(90, 104, 130, .1)' : link.color}
+          linkColor={link => activeNodeId && !focusState.linkIds.has(link.id) ? 'rgba(90, 104, 130, .1)' : link.reviewStatus === 'superseded' ? 'rgba(120, 144, 181, .35)' : link.reviewStatus === 'disputed' ? '#F4BD4A' : link.reviewStatus === 'rejected' ? 'rgba(180, 84, 104, .5)' : link.color}
           linkWidth={link => activeNodeId && focusState.linkIds.has(link.id) ? 2.1 : (link.kind === 'semantic' ? 1.7 : 1.1)}
           linkCurvature={link => link.sourceId === link.targetId ? 0.25 : 0}
           linkDirectionalArrowLength={4}
@@ -165,7 +166,7 @@ export default function KnowledgeGraph({ nodesData = [], onNodeSelect, focusNode
       <div className="mt-3 flex flex-wrap items-start gap-2 rounded-xl border border-blue-300/10 bg-blue-400/[0.035] p-3">
         <Network size={14} className="mt-0.5 shrink-0 text-blue-300" />
         <p className="text-[10px] leading-5 text-slate-500">
-          Las líneas grises/azules son referencias registradas. Las líneas de color representan relaciones semánticas solo cuando están declaradas en metadatos estructurados; no se deducen del texto ni de la cercanía visual.
+          Las líneas grises/azules son referencias registradas. Las líneas de color representan relaciones semánticas declaradas en metadatos o persistidas en Arkhé. Las relaciones discutidas, rechazadas o sustituidas se distinguen visualmente; el color no implica validez científica.
         </p>
       </div>
     </div>

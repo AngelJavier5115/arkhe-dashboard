@@ -66,3 +66,80 @@ test('self references are recorded for inspection without requiring fabricated n
   assert.equal(connections[0].direction, 'self');
   assert.equal(connections[0].label, 'Autorreferencia registrada');
 });
+
+
+const persistedRelation = {
+  id: 'relation-uuid-1',
+  source_node_id: 1,
+  target_node_id: 2,
+  relation_type: 'supports',
+  assertion: 'El aporte A respalda la hipótesis B bajo estas condiciones.',
+  evidence_text: 'El contenido del nodo 1 aporta la premisa relevante y delimitada.',
+  evidence_node_id: 1,
+  evidence_uri: 'https://example.org/evidence',
+  created_by_investigator_id: 'investigator-uuid',
+  origin_kind: 'investigator',
+  origin_channel: 'discord',
+  provider: 'Groq',
+  model: 'example-model',
+  run_ref: 'round-8',
+  provenance: { purpose: 'test', request_id: 'request-123' },
+  supersedes_relation_id: null,
+  created_at: '2026-10-09T20:00:00Z',
+};
+
+test('persisted semantic relations create typed edges and preserve evidence/provenance', () => {
+  const graph = buildEpistemicGraph(sampleNodes, [persistedRelation], [
+    { id: 'event-created', relation_id: persistedRelation.id, event_type: 'relation_created', created_at: '2026-10-09T20:00:00Z', actor_kind: 'investigator' },
+  ]);
+  const edge = graph.links.find(item => item.relationId === persistedRelation.id);
+  assert.ok(edge);
+  assert.equal(edge.kind, 'semantic');
+  assert.equal(edge.type, 'supports');
+  assert.equal(edge.assertion, persistedRelation.assertion);
+  assert.equal(edge.evidence, persistedRelation.evidence_text);
+  assert.equal(edge.evidenceNodeId, 1);
+  assert.equal(edge.evidenceUri, persistedRelation.evidence_uri);
+  assert.equal(edge.originChannel, 'discord');
+  assert.equal(edge.provider, 'Groq');
+  assert.equal(edge.model, 'example-model');
+  assert.equal(edge.runRef, 'round-8');
+  assert.equal(edge.provenance.request_id, 'request-123');
+  assert.equal(edge.reviewStatus, 'proposed');
+  assert.equal(edge.verified, false);
+});
+
+test('relation events update review status without pretending that review is scientific verification', () => {
+  const events = [
+    { id: 'created', relation_id: persistedRelation.id, event_type: 'relation_created', created_at: '2026-10-09T20:00:00Z' },
+    { id: 'disputed', relation_id: persistedRelation.id, event_type: 'relation_disputed', created_at: '2026-10-09T20:30:00Z' },
+    { id: 'reviewed-old', relation_id: persistedRelation.id, event_type: 'relation_reviewed', created_at: '2026-10-09T20:10:00Z' },
+  ];
+  const graph = buildEpistemicGraph(sampleNodes, [persistedRelation], events);
+  const edge = graph.links.find(item => item.relationId === persistedRelation.id);
+  assert.equal(edge.reviewStatus, 'disputed');
+  assert.equal(edge.reviewLabel, 'En disputa');
+  assert.equal(edge.verified, false);
+  const connections = getNodeConnections(sampleNodes[0], sampleNodes, [persistedRelation], events);
+  assert.ok(connections.some(item => item.relationId === persistedRelation.id && item.reviewStatus === 'disputed'));
+});
+
+test('persisted relation with missing loaded neighbor is inspectable without inventing a node', () => {
+  const relation = { ...persistedRelation, source_node_id: 1, target_node_id: 999, id: 'relation-with-unloaded-target' };
+  const graph = buildEpistemicGraph([sampleNodes[0]], [relation], []);
+  assert.equal(graph.nodes.length, 1);
+  assert.equal(graph.links.length, 0);
+  const connections = getNodeConnections(sampleNodes[0], [sampleNodes[0]], [relation], []);
+  const unresolved = connections.find(item => item.relationId === relation.id);
+  assert.ok(unresolved);
+  assert.equal(unresolved.unresolved, true);
+  assert.equal(unresolved.neighborId, '999');
+  assert.equal(unresolved.evidence, relation.evidence_text);
+});
+
+test('relation prose does not become a semantic connection unless structured data exists', () => {
+  const node = { id: 44, ref_id: null, tipo: 'nota', estado: 'postulado', contenido: 'Esto apoya, cuestiona y contradice ideas cercanas.', metadata: {} };
+  const graph = buildEpistemicGraph([node]);
+  assert.equal(graph.nodes.length, 1);
+  assert.equal(graph.links.length, 0);
+});
