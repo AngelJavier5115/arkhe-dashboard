@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import ForceGraph2D from 'react-force-graph-2d';
-import { CircleHelp, Focus, Network, ZoomIn, ZoomOut } from 'lucide-react';
+import { HelpCircle, Focus, Network, ZoomIn, ZoomOut } from 'lucide-react';
 
 const STATUS_COLORS = {
   corroborado: '#59d6a6',
@@ -117,7 +117,7 @@ export default function KnowledgeGraph({ nodesData = [], onNodeSelect }) {
           }}
         />
         <div className="pointer-events-none absolute bottom-3 left-3 rounded-lg border border-slate-700/70 bg-slate-950/75 px-2.5 py-1.5 text-[9px] text-slate-500 backdrop-blur">
-          <span className="inline-flex items-center gap-1.5"><CircleHelp size={11} />Toca un nodo para abrir su detalle</span>
+          <span className="inline-flex items-center gap-1.5"><HelpCircle size={11} />Toca un nodo para abrir su detalle</span>
         </div>
       </div>
     </div>
