@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
-const migration = fs.readFileSync(new URL('../supabase/migrations/20261009205000_create_epistemic_semantic_relations.sql', import.meta.url), 'utf8');
+const migration = fs.readFileSync(new URL('../supabase/migrations/20261009210448_create_epistemic_semantic_relations.sql', import.meta.url), 'utf8');
 
 test('semantic relation schema stores directed claims, evidence and provenance', () => {
   for (const field of [
@@ -44,7 +44,7 @@ test('semantic relation registration function requires evidence and is not execu
 
 
 test('service-role table DML is revoked so writes must use the registration RPC', () => {
-  const hardening = fs.readFileSync(new URL('../supabase/migrations/20261009211000_lock_semantic_relation_direct_writes.sql', import.meta.url), 'utf8');
+  const hardening = fs.readFileSync(new URL('../supabase/migrations/20261009211409_lock_semantic_relation_direct_writes.sql', import.meta.url), 'utf8');
   assert.match(hardening, /revoke insert, update, delete, truncate, references, trigger[\s\S]*?from service_role/i);
   assert.match(hardening, /grant select on table public\.arkhe_semantic_relations to service_role/i);
   assert.match(hardening, /grant select on table public\.arkhe_semantic_relation_events to service_role/i);
