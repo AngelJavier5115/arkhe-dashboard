@@ -7,6 +7,7 @@ import {
   rejectClientIdentityClaims,
   validateCreateRelationBody,
   validateReviewRelationBody,
+  TLACUILO_SMOKE_POLICY,
 } from './semantic-relations-logic.js';
 
 const MAX_BODY_BYTES = 24 * 1024;
@@ -76,12 +77,55 @@ async function reserveWrite(supabase, actor) {
   if (data !== true) throw httpError('Se alcanzó el límite temporal de escrituras para este actor. Inténtalo más tarde.', 429);
 }
 
+async function enforceTlacuiloPreconditions(supabase) {
+  const policy = TLACUILO_SMOKE_POLICY;
+  const { data: nodes, error: nodesError } = await supabase
+    .from('investigaciones')
+    .select('id, contenido')
+    .in('id', [policy.sourceNodeId, policy.targetNodeId]);
+
+  if (nodesError || !Array.isArray(nodes) || nodes.length !== 2) {
+    throw httpError('Tlacuilo no pudo verificar los dos nodos aprobados; no se escribió ninguna relación.', 409);
+  }
+
+  const nodeMap = new Map(nodes.map(node => [Number(node.id), node]));
+  if (
+    nodeMap.get(policy.sourceNodeId)?.contenido !== policy.sourceNodeText ||
+    nodeMap.get(policy.targetNodeId)?.contenido !== policy.targetNodeText
+  ) {
+    throw httpError('El contenido actual de los nodos aprobados cambió; Tlacuilo se detiene sin escribir.', 409);
+  }
+
+  const [forward, reverse] = await Promise.all([
+    supabase.from('arkhe_semantic_relations')
+      .select('id')
+      .eq('source_node_id', policy.sourceNodeId)
+      .eq('target_node_id', policy.targetNodeId)
+      .limit(1),
+    supabase.from('arkhe_semantic_relations')
+      .select('id')
+      .eq('source_node_id', policy.targetNodeId)
+      .eq('target_node_id', policy.sourceNodeId)
+      .limit(1),
+  ]);
+
+  if (forward.error || reverse.error || !Array.isArray(forward.data) || !Array.isArray(reverse.data)) {
+    throw httpError('Tlacuilo no pudo comprobar que no existe una relación previa; no se escribió ninguna relación.', 503);
+  }
+  if (forward.data.length > 0 || reverse.data.length > 0) {
+    throw httpError('Ya existe una relación entre los nodos aprobados; la política de Tlacuilo se detiene sin duplicarla.', 409);
+  }
+}
+
 function mapDatabaseError(error) {
   if (error?.status) return error;
   if (['23503', '23514', '23502', '22P02', '22001', 'P0001'].includes(error?.code)) {
     return httpError('La base de datos rechazó la relación o revisión por sus reglas de integridad.', 400);
   }
-  if (error?.code === '23505') return httpError('El nonce, evento o límite de uso único ya se consumió; no se aplicó otra vez.', 409);
+  if (error?.code === '23505' && error?.constraint === 'arkhe_semantic_relations_tlacuilo_policy_once_idx') {
+    return httpError('La política de uso único de Tlacuilo ya se consumió; requiere reconciliación manual.', 409);
+  }
+  if (error?.code === '23505') return httpError('El evento o nonce ya existe; no se aplicó de nuevo.', 409);
   return httpError('No fue posible completar la operación de relaciones semánticas.', 500);
 }
 
@@ -126,6 +170,9 @@ export function createSemanticRelationsHandler(dependencies = {}) {
 
       if (body.action === 'create') {
         const input = validateCreateRelationBody(body, actor);
+        if (actor.serviceId === TLACUILO_SMOKE_POLICY.executorServiceId) {
+          await enforceTlacuiloPreconditions(supabase);
+        }
         await reserveWrite(supabase, actor);
 
         const { data, error } = await supabase.rpc('arkhe_register_semantic_relation', {
