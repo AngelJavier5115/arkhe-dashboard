@@ -355,6 +355,40 @@ test('POST creation uses server-derived actor and RPC instead of direct table wr
   });
 });
 
+test('Tlacuilo POST records its own executor identity and Atlas as delegated investigator', async () => {
+  await withTlacuiloKey(async () => {
+    const body = createTlacuiloBody();
+    const req = signedRequest(body, { serviceId: 'tlacuilo' });
+    const supabase = createFakeSupabase();
+    const res = createResponse();
+    const handler = createSemanticRelationsHandler({
+      getSupabase: () => supabase,
+      getHumanSession: async () => { throw new Error('must not use human auth'); },
+      requireSameOrigin: () => { throw new Error('must not use browser origin'); },
+    });
+
+    await handler(req, res);
+
+    assert.equal(res.statusCode, 201);
+    assert.equal(res.body.ok, true);
+    const calls = supabase.calls.filter(call => call.kind === 'rpc');
+    assert.deepEqual(calls.map(call => call.name), ['arkhe_reserve_semantic_write', 'arkhe_register_semantic_relation']);
+    const args = calls[1].args;
+    assert.equal(args.p_created_by_investigator_id, ATLAS_ID);
+    assert.equal(args.p_origin_kind, 'investigator');
+    assert.equal(args.p_origin_channel, 'signed-service-api');
+    assert.equal(args.p_provenance.authentication.service_id, 'tlacuilo');
+    assert.equal(args.p_provenance.assertion_source, 'delegated-investigator-proposal');
+    assert.equal(args.p_provenance.delegation.executor_service_id, 'tlacuilo');
+    assert.equal(args.p_provenance.delegation.investigator_id, ATLAS_ID);
+    assert.equal(args.p_provenance.delegation.policy_id, TLACUILO_SMOKE_POLICY.policyId);
+    assert.equal(args.p_provenance.provider_attestation.status, 'not_independently_verified');
+    assert.equal(args.p_provider, null);
+    assert.equal(args.p_model, null);
+    assert.equal(args.p_run_ref, null);
+  });
+});
+
 test('human review calls only the append-event RPC and cannot submit a spoofed actor', async () => {
   const body = {
     action: 'review',
