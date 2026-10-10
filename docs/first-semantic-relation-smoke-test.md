@@ -51,12 +51,12 @@ Cuerpo JSON esperado:
 ## Cómo debe ejecutarse
 
 1. Usar un cliente autorizado de A.2 que firme el cuerpo completo con Ed25519 usando su clave privada en su entorno de servidor. Nunca copiar esa clave a un navegador, GitHub, el repositorio o el chat.
-2. Enviar la petición al endpoint \`POST /api/semantic-relations\` del Preview protegido de Vercel de la rama `security/tlacuilo-delegation`.
-3. Verificar HTTP 201 y conservar el ID devuelto.
-4. Consultar Supabase y confirmar exactamente una relación con source #5, target #6, type \`duplicates\`, el investigador derivado de la firma y la procedencia marcada como no verificada independientemente.
-5. Confirmar un solo evento \`relation_created\` para ese ID.
-6. Confirmar que no cambió ningún otro nodo, relación o evento.
-7. Si no hay acceso autorizado al cliente de firma o al Preview, detenerse. No sustituir este procedimiento por una escritura SQL administrativa o un atajo que evite la autenticación.
+2. La API del Preview vuelve a verificar los textos actuales de ambos nodos y que no exista una relación previa en ninguna dirección; si no puede verificarlo o hay discrepancias, aborta antes de reservar la escritura. La base debe tener aplicadas las migraciones de uso único antes de autorizar esta prueba.\n3. Enviar la petición al endpoint \`POST /api/semantic-relations\` del Preview protegido de Vercel de la rama `security/tlacuilo-delegation`.
+4. Verificar HTTP 201 y conservar el ID devuelto.
+5. Consultar Supabase y confirmar exactamente una relación con source #5, target #6, type \`duplicates\`, el investigador derivado de la firma y la procedencia marcada como no verificada independientemente.
+6. Confirmar un solo evento \`relation_created\` para ese ID.
+7. Confirmar que no cambió ningún otro nodo, relación o evento.
+8. Si no hay acceso autorizado al cliente de firma o al Preview, detenerse. No sustituir este procedimiento por una escritura SQL administrativa o un atajo que evite la autenticación.
 
 ## Estado actual
 
