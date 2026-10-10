@@ -19,11 +19,36 @@ jobs:
   api-tests-and-build:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: tlacuilo_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d tlacuilo_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           persist-credentials: false
+
+      - name: Install PostgreSQL client
+        run: sudo apt-get update && sudo apt-get install --yes postgresql-client
+
+      - name: Verify one-shot migration in disposable PostgreSQL
+        env:
+          PGHOST: 127.0.0.1
+          PGPORT: 5432
+          PGUSER: postgres
+          PGPASSWORD: postgres
+          PGDATABASE: tlacuilo_test
+        run: bash tests/tlacuilo-one-shot-guard.sh
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
