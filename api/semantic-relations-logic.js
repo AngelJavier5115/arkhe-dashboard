@@ -40,9 +40,9 @@ export const REVIEW_EVENT_TYPES = new Set([
   'note_added',
 ]);
 
-// This is one narrow technical application inspired by the future Tlacuilo
-// protocol described in Ángel's DeepSeek/Tekton memory. The full per-investigator
-// review protocol remains future work; this policy is not that complete protocol.
+// This is one narrow technical application of Arkhé's proposed custodial-review
+// principle. The full per-investigator review protocol remains future work; this
+// hard-coded delegation policy is not that complete protocol.
 export const TLACUILO_SMOKE_POLICY = Object.freeze({
   policyId: 'tlacuilo-smoke-relation-5-6-duplicates-v1',
   executorServiceId: 'tlacuilo',
