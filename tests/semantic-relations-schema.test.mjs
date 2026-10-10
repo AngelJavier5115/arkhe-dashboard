@@ -89,7 +89,7 @@ test('Tlacuilo delegation is one-shot at the database layer, not only in runner 
   );
   assert.match(singleUseMigration, /create unique index if not exists/i);
   assert.match(singleUseMigration, /arkhe_semantic_relations_tlacuilo_policy_once_idx/);
-  assert.match(singleUseMigration, /provenance #>> '\\{delegation,policy_id\\}'/);
+  assert.ok(singleUseMigration.includes("provenance #>> '{delegation,policy_id}'"));
   assert.match(singleUseMigration, /tlacuilo-smoke-relation-5-6-duplicates-v1/);
   assert.doesNotMatch(singleUseMigration, /drop index|drop constraint/i);
 });
