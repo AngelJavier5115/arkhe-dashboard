@@ -507,6 +507,106 @@ test('Tlacuilo POST records its own executor identity and Atlas as delegated inv
   });
 });
 
+test('Tlacuilo signed preflight reads approved state without semantic writes', async () => {
+  await withTlacuiloKey(async () => {
+    const req = signedRequest({ action: 'preflight' }, { serviceId: 'tlacuilo' });
+    const supabase = createFakeSupabase();
+    const res = createResponse();
+    await createSemanticRelationsHandler({ getSupabase: () => supabase })(req, res);
+
+    assert.equal(res.statusCode, 200);
+    assert.equal(res.body.ok, true);
+    assert.equal(res.body.mode, 'preflight');
+    assert.equal(res.body.approved_texts_match, true);
+    assert.equal(res.body.relation_absent_in_both_directions, true);
+    assert.equal(res.body.event_history_readable, true);
+    assert.equal(res.body.semantic_writes_performed, 0);
+    assert.equal(res.body.nonce_recorded, true);
+    assert.deepEqual(supabase.calls.filter(call => call.kind === 'rpc'), []);
+    assert.ok(supabase.calls.some(call => call.kind === 'table-select' && call.table === 'arkhe_semantic_relation_events'));
+  });
+});
+
+test('Tlacuilo preflight fails closed when event history is unreadable', async () => {
+  await withTlacuiloKey(async () => {
+    const req = signedRequest({ action: 'preflight' }, { serviceId: 'tlacuilo' });
+    const supabase = createFakeSupabase({ eventReadError: { code: '42501' } });
+    const res = createResponse();
+    await createSemanticRelationsHandler({ getSupabase: () => supabase })(req, res);
+
+    assert.equal(res.statusCode, 503);
+    assert.match(res.body.error, /historial necesario/);
+    assert.deepEqual(supabase.calls.filter(call => call.kind === 'rpc'), []);
+  });
+});
+
+test('other signed services cannot call Tlacuilo preflight', async () => {
+  await withAtlasKey(async () => {
+    const req = signedRequest({ action: 'preflight' }, { serviceId: 'atlas' });
+    const supabase = createFakeSupabase();
+    const res = createResponse();
+    await createSemanticRelationsHandler({ getSupabase: () => supabase })(req, res);
+
+    assert.equal(res.statusCode, 403);
+    assert.match(res.body.error, /requiere la identidad firmada/);
+    assert.deepEqual(supabase.calls.filter(call => call.kind === 'rpc'), []);
+  });
+});
+
+test('Tlacuilo signed verify returns only after relation provenance and one creation event match', async () => {
+  await withTlacuiloKey(async () => {
+    const req = signedRequest({ action: 'verify', relation_id: RELATION_ID }, { serviceId: 'tlacuilo' });
+    const supabase = createFakeSupabase();
+    const res = createResponse();
+    await createSemanticRelationsHandler({ getSupabase: () => supabase })(req, res);
+
+    assert.equal(res.statusCode, 200);
+    assert.equal(res.body.ok, true);
+    assert.equal(res.body.mode, 'verify');
+    assert.equal(res.body.relation_id, RELATION_ID);
+    assert.equal(res.body.source_node_id, 5);
+    assert.equal(res.body.target_node_id, 6);
+    assert.equal(res.body.relation_type, 'duplicates');
+    assert.equal(res.body.executor_service_id, 'tlacuilo');
+    assert.equal(res.body.delegation_policy_id, TLACUILO_SMOKE_POLICY.policyId);
+    assert.equal(res.body.verified_creation_events, 1);
+    assert.equal(res.body.nonce_recorded, true);
+    assert.deepEqual(supabase.calls.filter(call => call.kind === 'rpc'), []);
+  });
+});
+
+test('Tlacuilo signed verify rejects incorrect stored provenance', async () => {
+  await withTlacuiloKey(async () => {
+    const wrong = createVerifiedTlacuiloRelation();
+    wrong.provenance.delegation.policy_id = 'other-policy';
+    const req = signedRequest({ action: 'verify', relation_id: RELATION_ID }, { serviceId: 'tlacuilo' });
+    const supabase = createFakeSupabase({ verificationRelation: wrong });
+    const res = createResponse();
+    await createSemanticRelationsHandler({ getSupabase: () => supabase })(req, res);
+
+    assert.equal(res.statusCode, 409);
+    assert.match(res.body.error, /procedencia no coincide/);
+    assert.deepEqual(supabase.calls.filter(call => call.kind === 'rpc'), []);
+  });
+});
+
+test('Tlacuilo signed verify rejects multiple creation events', async () => {
+  await withTlacuiloKey(async () => {
+    const req = signedRequest({ action: 'verify', relation_id: RELATION_ID }, { serviceId: 'tlacuilo' });
+    const supabase = createFakeSupabase({
+      relationEvents: [
+        { id: 'e1', relation_id: RELATION_ID, event_type: 'relation_created', actor_investigator_id: ATLAS_ID, actor_kind: 'investigator' },
+        { id: 'e2', relation_id: RELATION_ID, event_type: 'relation_created', actor_investigator_id: ATLAS_ID, actor_kind: 'investigator' },
+      ],
+    });
+    const res = createResponse();
+    await createSemanticRelationsHandler({ getSupabase: () => supabase })(req, res);
+
+    assert.equal(res.statusCode, 409);
+    assert.match(res.body.error, /historial no coincide/);
+  });
+});
+
 test('Tlacuilo server gate aborts if either approved node content changes', async () => {
   await withTlacuiloKey(async () => {
     const body = createTlacuiloBody();
