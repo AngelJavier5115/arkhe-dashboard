@@ -41,7 +41,7 @@ La procedencia registra el servicio ejecutor, el investigador delegado y el iden
 ## Plan de aplicación
 
 1. Terminar pruebas estáticas/API en ramas aisladas.
-2. Revisar la rama y el PR de la API; las migraciones `20261010100000_allow_tlacuilo_executor_nonces.sql` y `20261010103000_enforce_tlacuilo_policy_single_use.sql` son propuestas y **no se han aplicado** a la base compartida. La segunda impone el uso único de esta política mediante un índice único en la base de datos.
+2. Revisar la rama y el PR de la API; las migraciones `20261010225627_allow_tlacuilo_executor_nonces.sql` y `20261010225642_enforce_tlacuilo_policy_single_use.sql` son propuestas y **no se han aplicado** a la base compartida. La segunda impone el uso único de esta política mediante un índice único en la base de datos.
 3. Alojar el runner en un repositorio **privado dedicado** antes de configurar secretos. `atlas-bot` es público; por tanto, no deben almacenarse secretos de ejecución en ese repositorio.
 4. Crear un entorno protegido con aprobación manual y secretos de alcance mínimo.
 5. Registrar una pareja Ed25519 creada fuera de GitHub: pública sólo en Vercel Preview de `security/tlacuilo-delegation` como `ARKHE_TLACUILO_PUBLIC_KEY`; privada sólo como secreto del executor privado.
