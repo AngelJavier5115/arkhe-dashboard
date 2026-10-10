@@ -54,14 +54,47 @@ function createFakeSupabase(options = {}) {
     calls,
     tableRows,
     from(table) {
-      return {
+      const tableApi = {
         insert: async row => {
           calls.push({ kind: 'table-insert', table, row });
           if (options.nonceError && table === 'core_request_nonces') return { data: null, error: options.nonceError };
           tableRows.push({ table, row });
           return { data: row, error: null };
         },
+        select: () => {
+          const filters = {};
+          const query = {
+            in(column, values) { filters[column] = values; return query; },
+            eq(column, value) { filters[column] = value; return query; },
+            limit(value) { filters.limit = value; return query; },
+            then(resolve, reject) {
+              calls.push({ kind: 'table-select', table, filters: { ...filters } });
+              if (table === 'investigaciones') {
+                if (options.nodeReadError) return Promise.resolve({ data: null, error: options.nodeReadError }).then(resolve, reject);
+                const nodes = options.tlacuiloNodes ?? [
+                  { id: TLACUILO_SMOKE_POLICY.sourceNodeId, contenido: TLACUILO_SMOKE_POLICY.sourceNodeText },
+                  { id: TLACUILO_SMOKE_POLICY.targetNodeId, contenido: TLACUILO_SMOKE_POLICY.targetNodeText },
+                ];
+                const selected = filters.id && Array.isArray(filters.id)
+                  ? nodes.filter(node => filters.id.includes(Number(node.id)))
+                  : nodes;
+                return Promise.resolve({ data: selected, error: null }).then(resolve, reject);
+              }
+              if (table === 'arkhe_semantic_relations') {
+                if (options.relationReadError) return Promise.resolve({ data: null, error: options.relationReadError }).then(resolve, reject);
+                let rows = options.existingRelations ?? [];
+                if (filters.source_node_id !== undefined) rows = rows.filter(row => Number(row.source_node_id) === Number(filters.source_node_id));
+                if (filters.target_node_id !== undefined) rows = rows.filter(row => Number(row.target_node_id) === Number(filters.target_node_id));
+                if (filters.limit !== undefined) rows = rows.slice(0, filters.limit);
+                return Promise.resolve({ data: rows, error: null }).then(resolve, reject);
+              }
+              return Promise.resolve({ data: [], error: null }).then(resolve, reject);
+            },
+          };
+          return query;
+        },
       };
+      return tableApi;
     },
     rpc: async (name, args) => {
       calls.push({ kind: 'rpc', name, args });
@@ -406,6 +439,56 @@ test('Tlacuilo POST records its own executor identity and Atlas as delegated inv
     assert.equal(args.p_provider, null);
     assert.equal(args.p_model, null);
     assert.equal(args.p_run_ref, null);
+  });
+});
+
+test('Tlacuilo server gate aborts if either approved node content changes', async () => {
+  await withTlacuiloKey(async () => {
+    const body = createTlacuiloBody();
+    const req = signedRequest(body, { serviceId: 'tlacuilo' });
+    const supabase = createFakeSupabase({
+      tlacuiloNodes: [
+        { id: 5, contenido: TLACUILO_SMOKE_POLICY.sourceNodeText },
+        { id: 6, contenido: 'Contenido modificado' },
+      ],
+    });
+    const res = createResponse();
+    await createSemanticRelationsHandler({ getSupabase: () => supabase })(req, res);
+
+    assert.equal(res.statusCode, 409);
+    assert.match(res.body.error, /contenido actual.*cambió/i);
+    assert.equal(supabase.calls.some(call => call.kind === 'rpc'), false);
+    assert.equal(supabase.calls.some(call => call.kind === 'table-select' && call.table === 'arkhe_semantic_relations'), false);
+  });
+});
+
+test('Tlacuilo server gate aborts if a relation already exists in either direction', async () => {
+  await withTlacuiloKey(async () => {
+    const body = createTlacuiloBody();
+    const req = signedRequest(body, { serviceId: 'tlacuilo' });
+    const supabase = createFakeSupabase({
+      existingRelations: [{ id: RELATION_ID, source_node_id: 6, target_node_id: 5 }],
+    });
+    const res = createResponse();
+    await createSemanticRelationsHandler({ getSupabase: () => supabase })(req, res);
+
+    assert.equal(res.statusCode, 409);
+    assert.match(res.body.error, /Ya existe una relación/);
+    assert.equal(supabase.calls.some(call => call.kind === 'rpc'), false);
+  });
+});
+
+test('Tlacuilo server gate aborts closed if it cannot inspect current nodes/relations', async () => {
+  await withTlacuiloKey(async () => {
+    const body = createTlacuiloBody();
+    const req = signedRequest(body, { serviceId: 'tlacuilo' });
+    const supabase = createFakeSupabase({ relationReadError: { code: '42501' } });
+    const res = createResponse();
+    await createSemanticRelationsHandler({ getSupabase: () => supabase })(req, res);
+
+    assert.equal(res.statusCode, 503);
+    assert.match(res.body.error, /no pudo comprobar/);
+    assert.equal(supabase.calls.some(call => call.kind === 'rpc'), false);
   });
 });
 
