@@ -81,7 +81,7 @@ function mapDatabaseError(error) {
   if (['23503', '23514', '23502', '22P02', '22001', 'P0001'].includes(error?.code)) {
     return httpError('La base de datos rechazó la relación o revisión por sus reglas de integridad.', 400);
   }
-  if (error?.code === '23505') return httpError('El evento o nonce ya existe; no se aplicó de nuevo.', 409);
+  if (error?.code === '23505') return httpError('El nonce, evento o límite de uso único ya se consumió; no se aplicó otra vez.', 409);
   return httpError('No fue posible completar la operación de relaciones semánticas.', 500);
 }
 
