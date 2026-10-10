@@ -743,3 +743,37 @@ test('endpoint rejects non-POST and non-JSON requests before connecting to Supab
   await handler({ method: 'POST', headers: { 'content-type': 'text/plain' }, body: '{}' }, contentTypeRes);
   assert.equal(contentTypeRes.statusCode, 415);
 });
+
+
+test('a one-shot database uniqueness conflict returns 409 and never creates a second relation', async () => {
+  await withTlacuiloKey(async () => {
+    const body = createTlacuiloBody();
+    const req = signedRequest(body, { serviceId: 'tlacuilo' });
+    // Simulate a race: the initial read-only precondition passed, but the
+    // database unique index detects that the one-shot policy was already used.
+    const supabase = createFakeSupabase({
+      registerError: {
+        code: '23505',
+        message: 'duplicate key value violates unique constraint arkhe_semantic_relations_tlacuilo_policy_once_idx',
+      },
+    });
+    const res = createResponse();
+    const handler = createSemanticRelationsHandler({
+      getSupabase: () => supabase,
+      getHumanSession: async () => null,
+      requireSameOrigin: () => { throw new Error('signed executor must not depend on browser origin'); },
+    });
+
+    await handler(req, res);
+
+    assert.equal(res.statusCode, 409);
+    assert.match(res.body.error, /política de uso único ya consumida/);
+    const registrationCalls = supabase.calls.filter(call =>
+      call.kind === 'rpc' && call.name === 'arkhe_register_semantic_relation'
+    );
+    assert.equal(registrationCalls.length, 1);
+    assert.equal(supabase.calls.some(call =>
+      call.kind === 'rpc' && call.name === 'arkhe_append_semantic_relation_event'
+    ), false);
+  });
+});
