@@ -64,6 +64,16 @@ test('write API migration constrains review authors, supersession scope, direct 
 });
 
 
+test('Tlacuilo nonce migration adds only the dedicated executor identity to the allowlist', () => {
+  const tlacuiloMigration = fs.readFileSync(
+    new URL('../supabase/migrations/20261010100000_allow_tlacuilo_executor_nonces.sql', import.meta.url),
+    'utf8'
+  );
+  assert.match(tlacuiloMigration, /core_request_nonces_service_id_check/i);
+  assert.match(tlacuiloMigration, /'atlas'::text, 'aletheia'::text, 'tekton'::text, 'tlacuilo'::text/i);
+  assert.doesNotMatch(tlacuiloMigration, /'production'|'admin'|'service_role'/i);
+});
+
 test('post-API hardening migration restores RPC-only table writes after the base function migration', () => {
   const relock = fs.readFileSync(new URL('../supabase/migrations/20261009214834_relock_semantic_relation_direct_writes_after_api_migration.sql', import.meta.url), 'utf8');
   assert.match(relock, /revoke insert, update, delete, truncate, references, trigger[\s\S]*?on table public\.arkhe_semantic_relations[\s\S]*?from service_role/i);
