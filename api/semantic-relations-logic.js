@@ -50,6 +50,8 @@ export const TLACUILO_SMOKE_POLICY = Object.freeze({
   sourceNodeId: 5,
   targetNodeId: 6,
   relationType: 'duplicates',
+  sourceNodeText: 'El uso de arquitecturas basadas en eventos optimiza la sincronización entre nodos en tiempo real.',
+  targetNodeText: 'El uso de arquitecturas orientadas a eventos optimiza la sincronización en tiempo real.',
   assertion: 'Los nodos #5 y #6 parecen expresar la misma afirmación general: que las arquitecturas basadas u orientadas a eventos favorecen la sincronización en tiempo real. Con los textos disponibles no se aprecia una diferencia conceptual clara entre ambos registros; la relación queda como propuesta y puede ser discutida o rechazada.',
   evidenceText: 'Comparación directa de los registros existentes. El nodo #5 afirma que las arquitecturas basadas en eventos optimizan la sincronización entre nodos en tiempo real; el nodo #6 afirma que las arquitecturas orientadas a eventos optimizan la sincronización en tiempo real. Coinciden en la idea central y difieren en formulación y alcance explícito (entre nodos). No se ha aportado una fuente externa en esta prueba; la clasificación se apoya sólo en el texto de ambos nodos y no equivale a verificación externa.',
 });
