@@ -122,10 +122,9 @@ function mapDatabaseError(error) {
   if (['23503', '23514', '23502', '22P02', '22001', 'P0001'].includes(error?.code)) {
     return httpError('La base de datos rechazó la relación o revisión por sus reglas de integridad.', 400);
   }
-  if (error?.code === '23505' && error?.constraint === 'arkhe_semantic_relations_tlacuilo_policy_once_idx') {
-    return httpError('La política de uso único de Tlacuilo ya se consumió; requiere reconciliación manual.', 409);
+  if (error?.code === '23505') {
+    return httpError('La operación encontró una restricción de unicidad (nonce repetido o política de uso único ya consumida); no reintentes automáticamente.', 409);
   }
-  if (error?.code === '23505') return httpError('El evento o nonce ya existe; no se aplicó de nuevo.', 409);
   return httpError('No fue posible completar la operación de relaciones semánticas.', 500);
 }
 
