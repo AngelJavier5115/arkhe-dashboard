@@ -1,0 +1,40 @@
+name: Tlacuilo Delegation Checks
+
+on:
+  push:
+    branches:
+      - security/tlacuilo-delegation
+  pull_request:
+    branches:
+      - design/tree-network-dashboard
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tlacuilo-delegation-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  api-tests-and-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Run all API, schema, and UI tests
+        run: npm test
+
+      - name: Build dashboard
+        run: npm run build
