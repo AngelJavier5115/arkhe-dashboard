@@ -80,3 +80,16 @@ test('post-API hardening migration restores RPC-only table writes after the base
   assert.match(relock, /revoke insert, update, delete, truncate, references, trigger[\s\S]*?on table public\.arkhe_semantic_relation_events[\s\S]*?from service_role/i);
   assert.match(relock, /revoke all on table public\.arkhe_semantic_write_windows[\s\S]*?from public, anon, authenticated, service_role/i);
 });
+
+
+test('Tlacuilo delegation is one-shot at the database layer, not only in runner preflight', () => {
+  const singleUseMigration = fs.readFileSync(
+    new URL('../supabase/migrations/20261010103000_enforce_tlacuilo_policy_single_use.sql', import.meta.url),
+    'utf8'
+  );
+  assert.match(singleUseMigration, /create unique index if not exists/i);
+  assert.match(singleUseMigration, /arkhe_semantic_relations_tlacuilo_policy_once_idx/);
+  assert.match(singleUseMigration, /provenance #>> '\\{delegation,policy_id\\}'/);
+  assert.match(singleUseMigration, /tlacuilo-smoke-relation-5-6-duplicates-v1/);
+  assert.doesNotMatch(singleUseMigration, /drop index|drop constraint/i);
+});
