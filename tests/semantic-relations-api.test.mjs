@@ -24,7 +24,7 @@ function signedRequest(body, overrides = {}) {
   const serviceId = overrides.serviceId ?? 'atlas';
   const timestamp = overrides.timestamp ?? Date.now();
   const nonce = overrides.nonce ?? 'nonce-test-' + cryptoRandomSuffix();
-  const signingKey = serviceId === 'tlacuilo' ? tlacuiloKeys.privateKey : atlasKeys.privateKey;
+  const signingKey = overrides.signingKey ?? (serviceId === 'tlacuilo' ? tlacuiloKeys.privateKey : atlasKeys.privateKey);
   const signature = sign(
     null,
     Buffer.from(buildSigningPayload({ serviceId, timestamp, nonce, body }), 'utf8'),
@@ -175,6 +175,24 @@ test('Tlacuilo authenticates as a distinct executor while its scoped proposal ma
     assert.equal(actor.authentication.signature_verified, true);
     assert.equal(supabase.tableRows[0].row.service_id, 'tlacuilo');
     assert.equal(buildRelationProvenance(actor).delegation.policy_id, TLACUILO_SMOKE_POLICY.policyId);
+  });
+});
+
+test('Tlacuilo rejects a request signed with Atlas private key', async () => {
+  await withTlacuiloKey(async () => {
+    const body = createTlacuiloBody();
+    const req = signedRequest(body, { serviceId: 'tlacuilo', signingKey: atlasKeys.privateKey });
+    const supabase = createFakeSupabase();
+
+    await assert.rejects(
+      () => authenticateSemanticActor(req, body, {
+        supabase,
+        getHumanSession: async () => null,
+        requireSameOrigin() {},
+      }),
+      error => error?.status === 401 && /Firma de servicio inválida/.test(error.message)
+    );
+    assert.equal(supabase.tableRows.length, 0);
   });
 });
 
