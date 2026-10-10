@@ -7,6 +7,7 @@ on:
   pull_request:
     branches:
       - main
+  workflow_dispatch:
 
 jobs:
   test-and-build:
@@ -19,3 +20,47 @@ jobs:
       - run: npm install --no-audit --no-fund
       - run: npm test
       - run: npm run build
+      - name: Live Preview — route and invalid-signature rejection
+        if: github.event_name != 'pull_request'
+        env:
+          ARKHE_PREVIEW_URL: https://arkhe-dashboard-git-design-tree-network-dashboard-arkhe7.vercel.app
+        shell: bash
+        run: |
+          set -euo pipefail
+          get_body="$(mktemp)"
+          post_body="$(mktemp)"
+          trap 'rm -f "$get_body" "$post_body"' EXIT
+
+          get_status="$(curl --silent --show-error --max-time 20 \
+            --output "$get_body" --write-out '%{http_code}' \
+            "$ARKHE_PREVIEW_URL/api/semantic-relations")"
+
+          if [[ "$get_status" != "405" ]]; then
+            echo "Expected GET 405, received HTTP $get_status"
+            cat "$get_body"
+            exit 1
+          fi
+          echo "PASS: GET rejected with 405"
+
+          timestamp="$(date +%s%3N)"
+          nonce="ci-invalid-signature-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${timestamp}"
+          body='{"action":"create","source_node_id":"not-a-node","target_node_id":"not-a-node","relation_type":"duplicates","assertion":"This is a deliberately invalid preflight payload.","evidence_text":"This evidence text is deliberately invalid for a live preflight test."}'
+
+          post_status="$(curl --silent --show-error --max-time 20 \
+            --request POST \
+            --header 'Content-Type: application/json' \
+            --header 'X-Arkhe-Service-Id: atlas' \
+            --header "X-Arkhe-Timestamp: ${timestamp}" \
+            --header "X-Arkhe-Nonce: ${nonce}" \
+            --header 'X-Arkhe-Signature: aW52YWxpZC1zaWduYXR1cmU' \
+            --data "$body" \
+            --output "$post_body" --write-out '%{http_code}' \
+            "$ARKHE_PREVIEW_URL/api/semantic-relations")
+
+          if [[ "$post_status" != "401" ]]; then
+            echo "Expected an invalid service signature to be rejected with 401, received HTTP $post_status"
+            cat "$post_body"
+            exit 1
+          fi
+          echo "PASS: deliberately invalid service signature rejected with 401"
+          echo "No valid signature or relation-write request was used."
