@@ -47,54 +47,120 @@ function cryptoRandomSuffix() {
   return Math.random().toString(36).slice(2, 14);
 }
 
+function createVerifiedTlacuiloRelation() {
+  const policy = TLACUILO_SMOKE_POLICY;
+  return {
+    id: RELATION_ID,
+    source_node_id: policy.sourceNodeId,
+    target_node_id: policy.targetNodeId,
+    relation_type: policy.relationType,
+    assertion: policy.assertion,
+    evidence_text: policy.evidenceText,
+    evidence_node_id: null,
+    evidence_uri: null,
+    created_by_investigator_id: policy.investigatorId,
+    origin_kind: 'investigator',
+    origin_channel: 'signed-service-api',
+    provider: null,
+    model: null,
+    run_ref: null,
+    supersedes_relation_id: null,
+    provenance: {
+      authentication: { service_id: policy.executorServiceId, signature_verified: true },
+      assertion_source: 'delegated-investigator-proposal',
+      delegation: {
+        executor_service_id: policy.executorServiceId,
+        investigator_id: policy.investigatorId,
+        policy_id: policy.policyId,
+        scope: {
+          source_node_id: policy.sourceNodeId,
+          target_node_id: policy.targetNodeId,
+          relation_type: policy.relationType,
+          max_proposals: 1,
+        },
+      },
+      provider_attestation: { status: 'not_independently_verified' },
+    },
+  };
+}
+
 function createFakeSupabase(options = {}) {
   const calls = [];
   const tableRows = [];
+  const defaultRelation = createVerifiedTlacuiloRelation();
+  const defaultEvents = [{
+    id: 'f49eeb10-34ae-47ca-9a47-f8123b1c004d',
+    relation_id: RELATION_ID,
+    event_type: 'relation_created',
+    actor_investigator_id: ATLAS_ID,
+    actor_kind: 'investigator',
+  }];
+
   return {
     calls,
     tableRows,
     from(table) {
-      const tableApi = {
+      return {
         insert: async row => {
           calls.push({ kind: 'table-insert', table, row });
-          if (options.nonceError && table === 'core_request_nonces') return { data: null, error: options.nonceError };
+          if (options.nonceError && table === 'core_request_nonces') {
+            return { data: null, error: options.nonceError };
+          }
           tableRows.push({ table, row });
           return { data: row, error: null };
         },
         select: () => {
           const filters = {};
+          const execute = async () => {
+            calls.push({ kind: 'table-select', table, filters: { ...filters } });
+            if (table === 'investigaciones') {
+              if (options.nodeReadError) return { data: null, error: options.nodeReadError };
+              const nodes = options.tlacuiloNodes ?? [
+                { id: TLACUILO_SMOKE_POLICY.sourceNodeId, contenido: TLACUILO_SMOKE_POLICY.sourceNodeText },
+                { id: TLACUILO_SMOKE_POLICY.targetNodeId, contenido: TLACUILO_SMOKE_POLICY.targetNodeText },
+              ];
+              const selected = filters.id && Array.isArray(filters.id)
+                ? nodes.filter(node => filters.id.includes(Number(node.id)))
+                : nodes;
+              return { data: selected, error: null };
+            }
+            if (table === 'arkhe_semantic_relations') {
+              if (options.relationReadError) return { data: null, error: options.relationReadError };
+              let rows = filters.id !== undefined
+                ? [options.verificationRelation ?? defaultRelation]
+                : (options.existingRelations ?? []);
+              if (filters.id !== undefined) rows = rows.filter(row => String(row.id) === String(filters.id));
+              if (filters.source_node_id !== undefined) rows = rows.filter(row => Number(row.source_node_id) === Number(filters.source_node_id));
+              if (filters.target_node_id !== undefined) rows = rows.filter(row => Number(row.target_node_id) === Number(filters.target_node_id));
+              if (filters.limit !== undefined) rows = rows.slice(0, filters.limit);
+              return { data: rows, error: null };
+            }
+            if (table === 'arkhe_semantic_relation_events') {
+              if (options.eventReadError) return { data: null, error: options.eventReadError };
+              let rows = options.relationEvents ?? defaultEvents;
+              if (filters.relation_id !== undefined) rows = rows.filter(row => String(row.relation_id) === String(filters.relation_id));
+              if (filters.limit !== undefined) rows = rows.slice(0, filters.limit);
+              return { data: rows, error: null };
+            }
+            return { data: [], error: null };
+          };
+
           const query = {
             in(column, values) { filters[column] = values; return query; },
             eq(column, value) { filters[column] = value; return query; },
             limit(value) { filters.limit = value; return query; },
-            then(resolve, reject) {
-              calls.push({ kind: 'table-select', table, filters: { ...filters } });
-              if (table === 'investigaciones') {
-                if (options.nodeReadError) return Promise.resolve({ data: null, error: options.nodeReadError }).then(resolve, reject);
-                const nodes = options.tlacuiloNodes ?? [
-                  { id: TLACUILO_SMOKE_POLICY.sourceNodeId, contenido: TLACUILO_SMOKE_POLICY.sourceNodeText },
-                  { id: TLACUILO_SMOKE_POLICY.targetNodeId, contenido: TLACUILO_SMOKE_POLICY.targetNodeText },
-                ];
-                const selected = filters.id && Array.isArray(filters.id)
-                  ? nodes.filter(node => filters.id.includes(Number(node.id)))
-                  : nodes;
-                return Promise.resolve({ data: selected, error: null }).then(resolve, reject);
-              }
-              if (table === 'arkhe_semantic_relations') {
-                if (options.relationReadError) return Promise.resolve({ data: null, error: options.relationReadError }).then(resolve, reject);
-                let rows = options.existingRelations ?? [];
-                if (filters.source_node_id !== undefined) rows = rows.filter(row => Number(row.source_node_id) === Number(filters.source_node_id));
-                if (filters.target_node_id !== undefined) rows = rows.filter(row => Number(row.target_node_id) === Number(filters.target_node_id));
-                if (filters.limit !== undefined) rows = rows.slice(0, filters.limit);
-                return Promise.resolve({ data: rows, error: null }).then(resolve, reject);
-              }
-              return Promise.resolve({ data: [], error: null }).then(resolve, reject);
+            order(column, options = {}) { filters.order = { column, ascending: options.ascending }; return query; },
+            then(resolve, reject) { return execute().then(resolve, reject); },
+            maybeSingle() {
+              return execute().then(result => ({
+                data: Array.isArray(result.data) ? (result.data[0] ?? null) : result.data,
+                error: result.error,
+              }));
             },
           };
           return query;
         },
       };
-      return tableApi;
     },
     rpc: async (name, args) => {
       calls.push({ kind: 'rpc', name, args });
@@ -105,7 +171,6 @@ function createFakeSupabase(options = {}) {
     },
   };
 }
-
 function createResponse() {
   return {
     statusCode: 200,
