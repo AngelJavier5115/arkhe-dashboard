@@ -41,10 +41,10 @@ La procedencia registra el servicio ejecutor, el investigador delegado y el iden
 ## Plan de aplicación
 
 1. Terminar pruebas estáticas/API en ramas aisladas.
-2. Revisar la rama y el PR de la API; la migración que añade `tlacuilo` al allowlist de nonces es una propuesta y **no se ha aplicado** a la base de datos compartida.
+2. Revisar la rama y el PR de la API; las migraciones `20261010100000_allow_tlacuilo_executor_nonces.sql` y `20261010103000_enforce_tlacuilo_policy_single_use.sql` son propuestas y **no se han aplicado** a la base compartida. La segunda impone el uso único de esta política mediante un índice único en la base de datos.
 3. Alojar el runner en un repositorio **privado dedicado** antes de configurar secretos. `atlas-bot` es público; por tanto, no deben almacenarse secretos de ejecución en ese repositorio.
 4. Crear un entorno protegido con aprobación manual y secretos de alcance mínimo.
-5. Registrar una pareja Ed25519 creada fuera de GitHub: pública sólo en Vercel Preview de `design/tree-network-dashboard` como `ARKHE_TLACUILO_PUBLIC_KEY`; privada sólo como secreto del executor privado.
+5. Registrar una pareja Ed25519 creada fuera de GitHub: pública sólo en Vercel Preview de `security/tlacuilo-delegation` como `ARKHE_TLACUILO_PUBLIC_KEY`; privada sólo como secreto del executor privado.
 6. Correr preflight de solo lectura y revisar el informe.
 7. Sólo después, Ángel autoriza la única escritura aprobada.
 8. Verificar resultado e historial, retirar el bypass temporal y eliminar credenciales efímeras.
@@ -53,6 +53,6 @@ La procedencia registra el servicio ejecutor, el investigador delegado y el iden
 
 - No se han creado ni configurado claves para Tlacuilo.
 - El valor de `ARKHE_TLACUILO_PUBLIC_KEY` todavía no existe en la configuración activa de Vercel; la variable previa `ARKHE_ATLAS_PUBLIC_KEY` está vacía y deshabilitada en Preview.
-- La restricción de servicio de `core_request_nonces` en la base actual permite `atlas`, `aletheia` y `tekton`, pero todavía no `tlacuilo`. La migración nueva debe revisarse y aplicarse explícitamente antes de ejecutar la prueba; no se ha aplicado.
+- La restricción de servicio de `core_request_nonces` en la base actual permite `atlas`, `aletheia` y `tekton`, pero todavía no `tlacuilo`. Las dos migraciones nuevas deben revisarse y aplicarse explícitamente antes de ejecutar la prueba; ninguna se ha aplicado.
 - El workflow de ejecución necesita trasladarse al repo privado dedicado o una decisión explícita para cambiar su ubicación. No se debe fusionar a `main` para “desbloquear” la ejecución.
 - En este momento ninguna relación semántica ha sido creada por Tlacuilo.
