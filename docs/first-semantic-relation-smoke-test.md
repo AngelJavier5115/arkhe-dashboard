@@ -1,8 +1,8 @@
 # Primera prueba real de relación semántica — nodos #5 y #6
 
-**Estado:** autorizada por Ángel para preparar y ejecutar en Preview; pendiente de una petición firmada real.  
+**Estado:** preparación autorizada; una escritura requiere autorización final de Ángel después de revisar API, esquema, credenciales y preflight.  
 **Fecha de autorización:** 2026-10-10  
-**Rama:** \`design/tree-network-dashboard\`  
+**Rama:** \`security/tlacuilo-delegation\`  
 **Entorno:** Vercel Preview + Supabase de Arkhé  
 **No-go:** no tocar \`main\`, no usar la clave de servicio desde el navegador y no crear datos ficticios.
 
@@ -50,14 +50,14 @@ Cuerpo JSON esperado:
 
 ## Cómo debe ejecutarse
 
-1. Usar un cliente autorizado de A.2 que firme el cuerpo completo con Ed25519 usando su clave privada en su entorno de servidor. Nunca copiar esa clave a un navegador, GitHub, el repositorio o el chat.
-2. Enviar la petición al endpoint \`POST /api/semantic-relations\` del Preview protegido de Vercel.
-3. Verificar HTTP 201 y conservar el ID devuelto.
-4. Consultar Supabase y confirmar exactamente una relación con source #5, target #6, type \`duplicates\`, el investigador derivado de la firma y la procedencia marcada como no verificada independientemente.
-5. Confirmar un solo evento \`relation_created\` para ese ID.
-6. Confirmar que no cambió ningún otro nodo, relación o evento.
-7. Si no hay acceso autorizado al cliente de firma o al Preview, detenerse. No sustituir este procedimiento por una escritura SQL administrativa o un atajo que evite la autenticación.
+1. Generar la pareja Ed25519 en un entorno local confiable: la clave privada sólo residirá en el entorno privado del ejecutor; nunca se copia al navegador, repositorio o chat. La clave pública sólo se configura en el Preview aprobado.
+2. La API del Preview vuelve a verificar los textos actuales de ambos nodos y que no exista una relación previa en ninguna dirección. Si no puede comprobarlo o hay discrepancias, aborta antes de reservar la escritura.
+3. Confirmar que las migraciones `20261010225627_allow_tlacuilo_executor_nonces.sql` y `20261010225642_enforce_tlacuilo_policy_single_use.sql` fueron revisadas y aplicadas deliberadamente antes de habilitar una escritura.
+4. Enviar la única propuesta al endpoint `POST /api/semantic-relations` del Preview protegido de Vercel de la rama `security/tlacuilo-delegation`.
+5. Verificar HTTP 201 y conservar el ID devuelto.
+6. Consultar Supabase y confirmar exactamente una relación #5 → #6 de tipo `duplicates`, atribuida a Atlas, autenticada como Tlacuilo y con un solo evento `relation_created`.
+7. Confirmar que no cambió ningún otro nodo, relación o evento. Si el resultado es ambiguo, no reintentar; inspeccionar la relación y el historial manualmente.
 
 ## Estado actual
 
-La autorización del par está documentada. La petición firmada real aún no se ejecuta. En el último chequeo había cero filas en \`arkhe_semantic_relations\` y cero en \`arkhe_semantic_relation_events\`; no escribir nada hasta que el cliente firmado y el acceso autorizado estén disponibles.
+La propuesta del par está documentada. La petición firmada real aún no se ejecuta. El límite de una única relación por política se apoyará en el índice único de la migración `20261010225642_enforce_tlacuilo_policy_single_use.sql`; hasta que ambas migraciones estén revisadas y aplicadas, no se autoriza ninguna escritura. En el último chequeo había cero filas en \`arkhe_semantic_relations\` y cero en \`arkhe_semantic_relation_events\`; no escribir nada hasta que el cliente firmado y el acceso autorizado estén disponibles.
