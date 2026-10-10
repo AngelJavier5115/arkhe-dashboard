@@ -66,7 +66,7 @@ test('write API migration constrains review authors, supersession scope, direct 
 
 test('Tlacuilo nonce migration adds only the dedicated executor identity to the allowlist', () => {
   const tlacuiloMigration = fs.readFileSync(
-    new URL('../supabase/migrations/20261010100000_allow_tlacuilo_executor_nonces.sql', import.meta.url),
+    new URL('../supabase/migrations/20261010225627_allow_tlacuilo_executor_nonces.sql', import.meta.url),
     'utf8'
   );
   assert.match(tlacuiloMigration, /core_request_nonces_service_id_check/i);
@@ -84,7 +84,7 @@ test('post-API hardening migration restores RPC-only table writes after the base
 
 test('Tlacuilo delegation is one-shot at the database layer, not only in runner preflight', () => {
   const singleUseMigration = fs.readFileSync(
-    new URL('../supabase/migrations/20261010103000_enforce_tlacuilo_policy_single_use.sql', import.meta.url),
+    new URL('../supabase/migrations/20261010225642_enforce_tlacuilo_policy_single_use.sql', import.meta.url),
     'utf8'
   );
   assert.match(singleUseMigration, /create unique index if not exists/i);
