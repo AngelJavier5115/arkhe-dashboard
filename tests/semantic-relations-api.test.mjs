@@ -8,6 +8,7 @@ import {
   rejectClientIdentityClaims,
   validateCreateRelationBody,
   validateReviewRelationBody,
+  TLACUILO_SMOKE_POLICY,
 } from '../api/semantic-relations-logic.js';
 import { createSemanticRelationsHandler } from '../api/semantic-relations.js';
 
@@ -107,6 +108,34 @@ async function withAtlasKey(callback) {
   }
 }
 
+async function withTlacuiloKey(callback) {
+  const previous = process.env.ARKHE_TLACUILO_PUBLIC_KEY;
+  process.env.ARKHE_TLACUILO_PUBLIC_KEY = publicKeyPem;
+  try { return await callback(); }
+  finally {
+    if (previous === undefined) delete process.env.ARKHE_TLACUILO_PUBLIC_KEY;
+    else process.env.ARKHE_TLACUILO_PUBLIC_KEY = previous;
+  }
+}
+
+function createTlacuiloBody(overrides = {}) {
+  return {
+    action: 'create',
+    source_node_id: TLACUILO_SMOKE_POLICY.sourceNodeId,
+    target_node_id: TLACUILO_SMOKE_POLICY.targetNodeId,
+    relation_type: TLACUILO_SMOKE_POLICY.relationType,
+    assertion: TLACUILO_SMOKE_POLICY.assertion,
+    evidence_text: TLACUILO_SMOKE_POLICY.evidenceText,
+    evidence_node_id: null,
+    evidence_uri: null,
+    provider: null,
+    model: null,
+    run_ref: null,
+    supersedes_relation_id: null,
+    ...overrides,
+  };
+}
+
 test('valid signed service authenticates its mapped investigator, not a body claim', async () => {
   await withAtlasKey(async () => {
     const body = createCreateBody();
@@ -124,6 +153,64 @@ test('valid signed service authenticates its mapped investigator, not a body cla
     assert.equal(supabase.tableRows.length, 1);
     assert.equal(supabase.tableRows[0].row.service_id, 'atlas');
   });
+});
+
+test('Tlacuilo authenticates as a distinct executor while its scoped proposal maps to Atlas', async () => {
+  await withTlacuiloKey(async () => {
+    const body = createTlacuiloBody();
+    const req = signedRequest(body, { serviceId: 'tlacuilo' });
+    const supabase = createFakeSupabase();
+    const actor = await authenticateSemanticActor(req, body, {
+      supabase,
+      getHumanSession: async () => { throw new Error('signed executor must not fall back to cookie auth'); },
+      requireSameOrigin: () => { throw new Error('signed executor must not depend on browser origin'); },
+    });
+
+    assert.equal(actor.kind, 'investigator');
+    assert.equal(actor.serviceId, 'tlacuilo');
+    assert.equal(actor.investigatorId, ATLAS_ID);
+    assert.equal(actor.authentication.service_id, 'tlacuilo');
+    assert.equal(actor.authentication.signature_verified, true);
+    assert.equal(supabase.tableRows[0].row.service_id, 'tlacuilo');
+    assert.equal(buildRelationProvenance(actor).delegation.policy_id, TLACUILO_SMOKE_POLICY.policyId);
+  });
+});
+
+test('Tlacuilo server-side policy allows only the exact approved proposal', () => {
+  const actor = {
+    kind: 'investigator',
+    serviceId: 'tlacuilo',
+    investigatorId: ATLAS_ID,
+  };
+
+  const allowed = validateCreateRelationBody(createTlacuiloBody(), actor);
+  assert.equal(allowed.sourceNodeId, 5);
+  assert.equal(allowed.targetNodeId, 6);
+  assert.equal(allowed.relationType, 'duplicates');
+  assert.equal(allowed.provider, null);
+  assert.equal(allowed.model, null);
+  assert.equal(allowed.runRef, null);
+
+  const deniedBodies = [
+    createTlacuiloBody({ source_node_id: 21 }),
+    createTlacuiloBody({ target_node_id: 22 }),
+    createTlacuiloBody({ relation_type: 'supports' }),
+    createTlacuiloBody({ assertion: TLACUILO_SMOKE_POLICY.assertion + ' Cambiado.' }),
+    createTlacuiloBody({ evidence_text: TLACUILO_SMOKE_POLICY.evidenceText + ' Fuente nueva.' }),
+    createTlacuiloBody({ evidence_uri: 'https://example.org/source' }),
+    createTlacuiloBody({ provider: 'claimed-provider' }),
+    createTlacuiloBody({ model: 'claimed-model' }),
+    createTlacuiloBody({ run_ref: 'other-execution' }),
+    createTlacuiloBody({ supersedes_relation_id: RELATION_ID }),
+  ];
+
+  for (const body of deniedBodies) {
+    assert.throws(
+      () => validateCreateRelationBody(body, actor),
+      error => error?.status === 403,
+      'Tlacuilo must reject unapproved body: ' + JSON.stringify(body)
+    );
+  }
 });
 
 test('a valid signature cannot be reused because the nonce is one-use', async () => {
