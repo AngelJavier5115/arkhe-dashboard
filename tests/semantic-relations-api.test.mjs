@@ -16,17 +16,19 @@ const ANGEL_ID = '2a003935-f248-442c-96fc-dcee29c4d41a';
 const ATLAS_ID = '6deb143d-17c4-4d1a-a2d2-1fd9ddf2853f';
 const RELATION_ID = 'c6bbd0aa-4721-42a7-91e7-06a4d8f56d6c';
 const atlasKeys = generateKeyPairSync('ed25519');
+const tlacuiloKeys = generateKeyPairSync('ed25519');
 const publicKeyPem = atlasKeys.publicKey.export({ type: 'spki', format: 'pem' });
-const privateKey = atlasKeys.privateKey;
+const tlacuiloPublicKeyPem = tlacuiloKeys.publicKey.export({ type: 'spki', format: 'pem' });
 
 function signedRequest(body, overrides = {}) {
   const serviceId = overrides.serviceId ?? 'atlas';
   const timestamp = overrides.timestamp ?? Date.now();
   const nonce = overrides.nonce ?? 'nonce-test-' + cryptoRandomSuffix();
+  const signingKey = serviceId === 'tlacuilo' ? tlacuiloKeys.privateKey : atlasKeys.privateKey;
   const signature = sign(
     null,
     Buffer.from(buildSigningPayload({ serviceId, timestamp, nonce, body }), 'utf8'),
-    privateKey
+    signingKey
   ).toString('base64url');
   return {
     method: 'POST',
@@ -110,7 +112,7 @@ async function withAtlasKey(callback) {
 
 async function withTlacuiloKey(callback) {
   const previous = process.env.ARKHE_TLACUILO_PUBLIC_KEY;
-  process.env.ARKHE_TLACUILO_PUBLIC_KEY = publicKeyPem;
+  process.env.ARKHE_TLACUILO_PUBLIC_KEY = tlacuiloPublicKeyPem;
   try { return await callback(); }
   finally {
     if (previous === undefined) delete process.env.ARKHE_TLACUILO_PUBLIC_KEY;
