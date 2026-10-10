@@ -16,7 +16,12 @@ CREATE TABLE public.arkhe_semantic_relations (
 );
 SQL
 
-psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261010103000_enforce_tlacuilo_policy_single_use.sql
+MIGRATION_FILE="$(find supabase/migrations -maxdepth 1 -type f -name '*_enforce_tlacuilo_policy_single_use.sql' -print -quit)"
+if [[ -z "$MIGRATION_FILE" ]]; then
+  echo "FAIL: the one-shot policy migration could not be found." >&2
+  exit 1
+fi
+psql -v ON_ERROR_STOP=1 -f "$MIGRATION_FILE"
 
 psql -v ON_ERROR_STOP=1 <<'SQL'
 INSERT INTO public.arkhe_semantic_relations (provenance)
