@@ -1,6 +1,6 @@
 # Primera prueba real de relación semántica — nodos #5 y #6
 
-**Estado:** autorizada por Ángel para preparar y ejecutar en Preview; pendiente de una petición firmada real.  
+**Estado:** preparación autorizada; una escritura requiere autorización final de Ángel después de revisar API, esquema, credenciales y preflight.  
 **Fecha de autorización:** 2026-10-10  
 **Rama:** \`design/tree-network-dashboard\`  
 **Entorno:** Vercel Preview + Supabase de Arkhé  
@@ -51,7 +51,7 @@ Cuerpo JSON esperado:
 ## Cómo debe ejecutarse
 
 1. Usar un cliente autorizado de A.2 que firme el cuerpo completo con Ed25519 usando su clave privada en su entorno de servidor. Nunca copiar esa clave a un navegador, GitHub, el repositorio o el chat.
-2. Enviar la petición al endpoint \`POST /api/semantic-relations\` del Preview protegido de Vercel.
+2. Enviar la petición al endpoint \`POST /api/semantic-relations\` del Preview protegido de Vercel de la rama `security/tlacuilo-delegation`.
 3. Verificar HTTP 201 y conservar el ID devuelto.
 4. Consultar Supabase y confirmar exactamente una relación con source #5, target #6, type \`duplicates\`, el investigador derivado de la firma y la procedencia marcada como no verificada independientemente.
 5. Confirmar un solo evento \`relation_created\` para ese ID.
