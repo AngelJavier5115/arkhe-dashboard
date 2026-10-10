@@ -492,6 +492,23 @@ test('Tlacuilo server gate aborts closed if it cannot inspect current nodes/rela
   });
 });
 
+test('Tlacuilo reports a database one-shot conflict without implying a retry is safe', async () => {
+  await withTlacuiloKey(async () => {
+    const body = createTlacuiloBody();
+    const req = signedRequest(body, { serviceId: 'tlacuilo' });
+    const supabase = createFakeSupabase({
+      registerError: { code: '23505', message: 'duplicate key value violates unique constraint' },
+    });
+    const res = createResponse();
+    await createSemanticRelationsHandler({ getSupabase: () => supabase })(req, res);
+
+    assert.equal(res.statusCode, 409);
+    assert.match(res.body.error, /restricción de unicidad/);
+    assert.match(res.body.error, /no reintentes automáticamente/);
+    assert.equal(supabase.calls.filter(call => call.kind === 'rpc').map(call => call.name).join(','), 'arkhe_reserve_semantic_write,arkhe_register_semantic_relation');
+  });
+});
+
 test('human review calls only the append-event RPC and cannot submit a spoofed actor', async () => {
   const body = {
     action: 'review',
