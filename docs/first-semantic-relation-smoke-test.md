@@ -2,7 +2,7 @@
 
 **Estado:** preparación autorizada; una escritura requiere autorización final de Ángel después de revisar API, esquema, credenciales y preflight.  
 **Fecha de autorización:** 2026-10-10  
-**Rama:** \`design/tree-network-dashboard\`  
+**Rama:** \`security/tlacuilo-delegation\`  
 **Entorno:** Vercel Preview + Supabase de Arkhé  
 **No-go:** no tocar \`main\`, no usar la clave de servicio desde el navegador y no crear datos ficticios.
 
@@ -60,4 +60,4 @@ Cuerpo JSON esperado:
 
 ## Estado actual
 
-La autorización del par está documentada. La petición firmada real aún no se ejecuta. En el último chequeo había cero filas en \`arkhe_semantic_relations\` y cero en \`arkhe_semantic_relation_events\`; no escribir nada hasta que el cliente firmado y el acceso autorizado estén disponibles.
+La propuesta del par está documentada. La petición firmada real aún no se ejecuta. El límite de una única relación por política se apoyará en el índice único de la migración `20261010103000_enforce_tlacuilo_policy_single_use.sql`; hasta que ambas migraciones estén revisadas y aplicadas, no se autoriza ninguna escritura. En el último chequeo había cero filas en \`arkhe_semantic_relations\` y cero en \`arkhe_semantic_relation_events\`; no escribir nada hasta que el cliente firmado y el acceso autorizado estén disponibles.
