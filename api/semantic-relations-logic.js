@@ -40,6 +40,17 @@ export const REVIEW_EVENT_TYPES = new Set([
   'note_added',
 ]);
 
+export const TLACUILO_SMOKE_POLICY = Object.freeze({
+  policyId: 'tlacuilo-smoke-relation-5-6-duplicates-v1',
+  executorServiceId: 'tlacuilo',
+  investigatorId: '6deb143d-17c4-4d1a-a2d2-1fd9ddf2853f',
+  sourceNodeId: 5,
+  targetNodeId: 6,
+  relationType: 'duplicates',
+  assertion: 'Los nodos #5 y #6 parecen expresar la misma afirmación general: que las arquitecturas basadas u orientadas a eventos favorecen la sincronización en tiempo real. Con los textos disponibles no se aprecia una diferencia conceptual clara entre ambos registros; la relación queda como propuesta y puede ser discutida o rechazada.',
+  evidenceText: 'Comparación directa de los registros existentes. El nodo #5 afirma que las arquitecturas basadas en eventos optimizan la sincronización entre nodos en tiempo real; el nodo #6 afirma que las arquitecturas orientadas a eventos optimizan la sincronización en tiempo real. Coinciden en la idea central y difieren en formulación y alcance explícito (entre nodos). No se ha aportado una fuente externa en esta prueba; la clasificación se apoya sólo en el texto de ambos nodos y no equivale a verificación externa.',
+});
+
 function httpError(message, status = 400) {
   const error = new Error(message);
   error.status = status;
@@ -263,6 +274,30 @@ export function validateCreateRelationBody(body, actor) {
     throw httpError('Los investigadores pueden proponer relaciones nuevas; la sustitución requiere gobierno humano.', 403);
   }
 
+  // Tlacuilo is a distinct signing service delegated only to this one approved
+  // proposal, attributed to Atlas. Its authority is constrained server-side;
+  // the workflow's confirmation string is not an authorization boundary alone.
+  if (actor.serviceId === TLACUILO_SMOKE_POLICY.executorServiceId) {
+    const policy = TLACUILO_SMOKE_POLICY;
+    const exactApprovedProposal =
+      actor.investigatorId === policy.investigatorId &&
+      sourceNodeId === policy.sourceNodeId &&
+      targetNodeId === policy.targetNodeId &&
+      body.relation_type === policy.relationType &&
+      assertion === policy.assertion &&
+      evidenceText === policy.evidenceText &&
+      evidenceNodeId === null &&
+      evidenceUri === null &&
+      provider === null &&
+      model === null &&
+      runRef === null &&
+      supersedesRelationId === null;
+
+    if (!exactApprovedProposal) {
+      throw httpError('Tlacuilo sólo está autorizado para la propuesta aprobada #5 → #6 de tipo duplicates, sin metadatos externos ni sustitución.', 403);
+    }
+  }
+
   return {
     sourceNodeId,
     targetNodeId,
@@ -313,9 +348,28 @@ export function validateReviewRelationBody(body) {
 }
 
 export function buildRelationProvenance(actor) {
+  const isTlacuilo = actor.serviceId === TLACUILO_SMOKE_POLICY.executorServiceId;
+
   return {
     authentication: actor.authentication,
-    assertion_source: actor.kind === 'human' ? 'human-governance' : 'authenticated-investigator',
+    assertion_source: actor.kind === 'human'
+      ? 'human-governance'
+      : isTlacuilo
+        ? 'delegated-investigator-proposal'
+        : 'authenticated-investigator',
+    ...(isTlacuilo ? {
+      delegation: {
+        executor_service_id: TLACUILO_SMOKE_POLICY.executorServiceId,
+        investigator_id: TLACUILO_SMOKE_POLICY.investigatorId,
+        policy_id: TLACUILO_SMOKE_POLICY.policyId,
+        scope: {
+          source_node_id: TLACUILO_SMOKE_POLICY.sourceNodeId,
+          target_node_id: TLACUILO_SMOKE_POLICY.targetNodeId,
+          relation_type: TLACUILO_SMOKE_POLICY.relationType,
+          max_proposals: 1,
+        },
+      },
+    } : {}),
     provider_attestation: {
       status: 'not_independently_verified',
       note: 'La firma autentica al servicio que declaró la relación; no es una atestación criptográfica del proveedor del modelo.',
