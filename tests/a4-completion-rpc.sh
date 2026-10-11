@@ -122,6 +122,40 @@ if [[ ! -f "$MIGRATION" ]]; then
 fi
 psql -v ON_ERROR_STOP=1 -f "$MIGRATION"
 
+DISPATCH_MIGRATION="supabase/migrations/20261011060000_create_core_dispatch_claims.sql"
+if [[ ! -f "$DISPATCH_MIGRATION" ]]; then
+  echo "FAIL: signed-dispatch claim migration not found: $DISPATCH_MIGRATION" >&2
+  exit 1
+fi
+psql -v ON_ERROR_STOP=1 -f "$DISPATCH_MIGRATION"
+
+# The dispatch receipt is a durable one-shot claim for a signed dispatch_id.
+psql -v ON_ERROR_STOP=1 -c "INSERT INTO public.core_dispatch_claims (dispatch_id, convocatoria_id, service_id)
+VALUES ('99999999-9999-4999-8999-999999999999',
+        'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+        'atlas');"
+if psql -v ON_ERROR_STOP=1 -c "INSERT INTO public.core_dispatch_claims (dispatch_id, convocatoria_id, service_id)
+VALUES ('99999999-9999-4999-8999-999999999999',
+        'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+        'atlas');" >"$LOG_FILE" 2>&1; then
+  cat "$LOG_FILE"
+  echo "FAIL: a replayed dispatch_id was accepted twice." >&2
+  exit 1
+fi
+if ! grep -q "duplicate key value" "$LOG_FILE"; then
+  cat "$LOG_FILE"
+  echo "FAIL: repeated dispatch was rejected for an unexpected reason." >&2
+  exit 1
+fi
+if psql -v ON_ERROR_STOP=1 -c "INSERT INTO public.core_dispatch_claims (dispatch_id, convocatoria_id, service_id)
+VALUES ('88888888-8888-4888-8888-888888888888',
+        'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+        'not-a-service');" >"$LOG_FILE" 2>&1; then
+  cat "$LOG_FILE"
+  echo "FAIL: the dispatch ledger accepted an unknown service identity." >&2
+  exit 1
+fi
+
 CALL="select public.arkhe_complete_invocation_atomically(
   'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
   'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
@@ -176,7 +210,7 @@ fi
 
 # Concurrency test: one transaction completes and holds the invocation row
 # lock; the second identical request waits and returns the original intervention.
-psql -v ON_ERROR_STOP=1 -c "TRUNCATE public.intervenciones_ronda, public.convocatorias_ronda;"
+psql -v ON_ERROR_STOP=1 -c "TRUNCATE public.core_dispatch_claims, public.intervenciones_ronda, public.convocatorias_ronda;"
 psql -v ON_ERROR_STOP=1 -c "INSERT INTO public.convocatorias_ronda (
   id,ronda_id,convocada_por,investigador_id,tipo_convocatoria,estado,correlation_id
 ) VALUES (
