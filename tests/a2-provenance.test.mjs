@@ -193,3 +193,26 @@ test('A2-E: direct invocation without authenticated service identity is rejected
 
   assert.equal(calls.rpc, 0);
 });
+
+
+test('A4 completion rejects malformed payloads before reaching the atomic RPC', async () => {
+  for (const payload of [
+    { contenido: '   ' },
+    { contenido: 'texto válido', metadata: [] },
+    { contenido: 'texto válido', tipo: '' },
+    { contenido: 'texto válido', responde_a_intervencion_id: 'not-a-uuid' },
+    { contenido: 'texto válido', nodo_id: -1 },
+  ]) {
+    const { supabase, calls } = fakeSupabase(atlasConvocatoria);
+    await assert.rejects(
+      () => actionCompleteInvocation(supabase, {
+        ronda_id: atlasConvocatoria.ronda_id,
+        convocatoria_id: atlasConvocatoria.id,
+        contenido: 'texto válido',
+        ...payload
+      }, atlasService),
+      error => error.status === 400
+    );
+    assert.equal(calls.rpc, 0, 'invalid input must not reach the database RPC');
+  }
+});
