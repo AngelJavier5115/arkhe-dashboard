@@ -13,15 +13,18 @@ const ACTIVE_RENDER_HOSTS = new Set([
 export const CORE_DISPATCH_TARGETS = Object.freeze({
   atlas: {
     investigadorId: '6deb143d-17c4-4d1a-a2d2-1fd9ddf2853f',
-    endpointEnv: 'ARKHE_ATLAS_DISPATCH_URL'
+    endpointEnv: 'ARKHE_ATLAS_DISPATCH_URL',
+    previewHostname: 'atlas-preview.onrender.com'
   },
   aletheia: {
     investigadorId: '122483a9-5012-46ce-a328-5bdb08b4de01',
-    endpointEnv: 'ARKHE_ALETHEIA_DISPATCH_URL'
+    endpointEnv: 'ARKHE_ALETHEIA_DISPATCH_URL',
+    previewHostname: 'aletheia-preview.onrender.com'
   },
   tekton: {
     investigadorId: '656726d1-8209-4240-8169-a7434074609d',
-    endpointEnv: 'ARKHE_TEKTON_DISPATCH_URL'
+    endpointEnv: 'ARKHE_TEKTON_DISPATCH_URL',
+    previewHostname: 'tekton-preview.onrender.com'
   }
 });
 
@@ -56,17 +59,21 @@ export function resolveCoreDispatchTarget(serviceId, env = process.env) {
     throw dispatchError(target.endpointEnv + ' no contiene una URL válida.');
   }
 
+  const hostname = url.hostname.toLowerCase();
   if (
     url.protocol !== 'https:' ||
-    !url.hostname.endsWith('.onrender.com') ||
-    ACTIVE_RENDER_HOSTS.has(url.hostname.toLowerCase()) ||
+    hostname !== target.previewHostname ||
+    ACTIVE_RENDER_HOSTS.has(hostname) ||
     url.username ||
     url.password ||
     url.pathname !== '/arkhe/invocation' ||
     url.search ||
     url.hash
   ) {
-    throw dispatchError(target.endpointEnv + ' debe apuntar a una URL HTTPS de Render de staging en /arkhe/invocation; producción queda bloqueada.');
+    throw dispatchError(
+      target.endpointEnv + ' debe apuntar exactamente a https://' +
+      target.previewHostname + '/arkhe/invocation. Los demás hosts, incluidos producción y otros servicios de Render, quedan bloqueados.'
+    );
   }
 
   return { ...target, serviceId, url: url.toString() };
