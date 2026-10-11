@@ -354,6 +354,79 @@ fi
 DISPATCH_STATUS="$(psql -v ON_ERROR_STOP=1 -Atq -c "select status from public.core_invocation_dispatches where dispatch_id='66666666-6666-4666-8666-666666666666';")"
 test "$DISPATCH_STATUS" = "claimed"
 
+# An accepted dispatch can become ambiguous if the worker stops after claim.
+# Reconciliation is manual, requires the human actor and a note, and revokes
+# the old dispatch so a late worker cannot commit afterward.
+psql -v ON_ERROR_STOP=1 -c "update public.core_invocation_dispatches
+  set claimed_at = now() - interval '6 minutes'
+  where dispatch_id='66666666-6666-4666-8666-666666666666';"
+
+RECONCILE_RESULT="$(psql -v ON_ERROR_STOP=1 -Atq -c "select public.arkhe_reconcile_invocation_dispatch(
+  '66666666-6666-4666-8666-666666666666',
+  '44444444-4444-4444-8444-444444444444',
+  '2a003935-f248-442c-96fc-dcee29c4d41a',
+  'Worker timed out; checked that no intervention exists before re-authorizing.'
+);")"
+if ! printf '%s' "$RECONCILE_RESULT" | grep -q '"status": "revoked"'; then
+  printf '%s\n' "$RECONCILE_RESULT"
+  echo "FAIL: stale claimed dispatch was not explicitly reconciled." >&2
+  exit 1
+fi
+
+psql -v ON_ERROR_STOP=1 -c "select public.arkhe_issue_invocation_dispatch(
+  '77777777-7777-4777-8777-777777777777',
+  '44444444-4444-4444-8444-444444444444',
+  '6deb143d-17c4-4d1a-a2d2-1fd9ddf2853f',
+  '2a003935-f248-442c-96fc-dcee29c4d41a',
+  now() + interval '90 seconds'
+);"
+psql -v ON_ERROR_STOP=1 -c "select public.arkhe_claim_invocation_dispatch(
+  '77777777-7777-4777-8777-777777777777',
+  '44444444-4444-4444-8444-444444444444',
+  '6deb143d-17c4-4d1a-a2d2-1fd9ddf2853f'
+);"
+
+if psql -v ON_ERROR_STOP=1 -c "select public.arkhe_complete_invocation_atomically(
+  '44444444-4444-4444-8444-444444444444',
+  '66666666-6666-4666-8666-666666666666',
+  'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+  '6deb143d-17c4-4d1a-a2d2-1fd9ddf2853f',
+  'perspectiva',
+  'Late result from revoked dispatch',
+  null::uuid,
+  null::bigint,
+  '{\"testing\":true}'::jsonb,
+  repeat('c',64)
+);" >"$LOG_FILE" 2>&1; then
+  cat "$LOG_FILE"
+  echo "FAIL: a late worker committed after human reconciliation revoked its dispatch." >&2
+  exit 1
+fi
+if ! grep -q "Dispatch is no longer active" "$LOG_FILE"; then
+  cat "$LOG_FILE"
+  echo "FAIL: revoked-dispatch completion failed for an unexpected reason." >&2
+  exit 1
+fi
+
+NEW_COMPLETION="$(psql -v ON_ERROR_STOP=1 -Atq -c "select public.arkhe_complete_invocation_atomically(
+  '44444444-4444-4444-8444-444444444444',
+  '77777777-7777-4777-8777-777777777777',
+  'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+  '6deb143d-17c4-4d1a-a2d2-1fd9ddf2853f',
+  'perspectiva',
+  'Completion from explicitly re-authorized dispatch',
+  null::uuid,
+  null::bigint,
+  '{\"testing\":true}'::jsonb,
+  repeat('d',64)
+);")"
+if ! printf '%s' "$NEW_COMPLETION" | grep -q '"idempotent_replay": false'; then
+  printf '%s\n' "$NEW_COMPLETION"
+  echo "FAIL: explicitly re-authorized dispatch could not complete the invocation." >&2
+  exit 1
+fi
+test "$(psql -v ON_ERROR_STOP=1 -Atq -c "select estado from public.convocatorias_ronda where id='44444444-4444-4444-8444-444444444444';")" = "completada"
+
 # An expired, unclaimed envelope cannot be claimed. Issuance of a new envelope
 # is possible only through a later explicit human dispatch request.
 psql -v ON_ERROR_STOP=1 -c "INSERT INTO public.convocatorias_ronda (
@@ -389,4 +462,4 @@ if ! grep -q "Signed dispatch expired" "$LOG_FILE"; then
   exit 1
 fi
 
-echo "PASS: completion is atomic/idempotent; dispatch issue is human-owned, audience-bound, one-shot and expiry-checked."
+echo "PASS: completion is atomic/idempotent and bound to the claimed dispatch; failure and reconciliation are race-safe; revoked late workers cannot commit."
