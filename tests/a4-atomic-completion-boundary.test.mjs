@@ -34,3 +34,16 @@ test('atomic completion migration locks invocation row and replays only an ident
   assert.match(migration, /FROM PUBLIC, anon, authenticated/);
   assert.match(migration, /TO service_role/);
 });
+
+
+test('A4 failure transition uses an atomic state guard and never overwrites a completed invocation', () => {
+  const startFail = core.indexOf('async function actionFailInvocation');
+  const endFail = core.indexOf('async function actionOpenDebate', startFail);
+  assert.ok(startFail >= 0 && endFail > startFail, 'actionFailInvocation boundaries must exist');
+  const failure = core.slice(startFail, endFail);
+
+  assert.match(failure, /\.eq\('id', convocatoriaId\)[\s\S]*?\.eq\('investigador_id', investigadorId\)[\s\S]*?\.in\('estado', \['enviada', 'pendiente'\]\)/);
+  assert.match(failure, /\.maybeSingle\(\)/);
+  assert.match(failure, /current\.estado === 'error'[\s\S]*?idempotent_replay: true/);
+  assert.match(failure, /current\.estado === 'completada'[\s\S]*?status = 409/);
+});
