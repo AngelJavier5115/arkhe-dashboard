@@ -38,8 +38,8 @@ function fakeSupabase(convocatoria) {
 }
 
 const atlasConvocatoria = {
-  id: 'conv-atlas-test',
-  ronda_id: 'round-a2-test',
+  id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+  ronda_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
   investigador_id: IDS.atlas,
   foco_intervencion_id: null,
   estado: 'enviada'
