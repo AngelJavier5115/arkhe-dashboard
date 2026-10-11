@@ -92,21 +92,53 @@ test('dispatch signer fails closed on unknown targets, mismatched IDs, and non-E
   }), /debe ser Ed25519/);
 });
 
-test('dispatch configuration only permits the expected HTTPS Render endpoint', () => {
+test('Preview dispatch requires a staging Render URL and never permits the live bot host', () => {
   const names = [
     'ARKHE_CORE_DISPATCH_PRIVATE_KEY',
-    'ARKHE_ATLAS_INVOCATION_URL'
+    'ARKHE_ATLAS_INVOCATION_URL',
+    'VERCEL_ENV',
+    'ARKHE_CORE_DISPATCH_ENABLED'
   ];
   const prior = Object.fromEntries(names.map(name => [name, process.env[name]]));
   const { privateKey } = generateKeyPairSync('ed25519');
   process.env.ARKHE_CORE_DISPATCH_PRIVATE_KEY = privateKey.export({ format: 'pem', type: 'pkcs8' }).toString();
+  process.env.VERCEL_ENV = 'preview';
+  delete process.env.ARKHE_CORE_DISPATCH_ENABLED;
 
   try {
-    process.env.ARKHE_ATLAS_INVOCATION_URL = 'https://atlas-bot-8in0.onrender.com/arkhe/invocation';
+    process.env.ARKHE_ATLAS_INVOCATION_URL = 'https://arkhe-atlas-preview.onrender.com/arkhe/invocation';
     assert.doesNotThrow(() => assertCoreDispatchConfigured(['atlas']));
 
+    process.env.ARKHE_ATLAS_INVOCATION_URL = 'https://arkhe-atlas-preview.onrender.com/arkhe/invocation';
+  process.env.VERCEL_ENV = 'preview';
+    assert.throws(() => assertCoreDispatchConfigured(['atlas']), /entorno de despliegue autorizado/);
+
     process.env.ARKHE_ATLAS_INVOCATION_URL = 'https://attacker.example/arkhe/invocation';
-    assert.throws(() => assertCoreDispatchConfigured(['atlas']), /endpoint de invocación aprobado/);
+    assert.throws(() => assertCoreDispatchConfigured(['atlas']), /entorno de despliegue autorizado/);
+  } finally {
+    for (const name of names) restoreEnv(name, prior[name]);
+  }
+});
+
+test('Production dispatch requires explicit opt-in and the exact live Render target', () => {
+  const names = [
+    'ARKHE_CORE_DISPATCH_PRIVATE_KEY',
+    'ARKHE_ATLAS_INVOCATION_URL',
+    'VERCEL_ENV',
+    'ARKHE_CORE_DISPATCH_ENABLED'
+  ];
+  const prior = Object.fromEntries(names.map(name => [name, process.env[name]]));
+  const { privateKey } = generateKeyPairSync('ed25519');
+  process.env.ARKHE_CORE_DISPATCH_PRIVATE_KEY = privateKey.export({ format: 'pem', type: 'pkcs8' }).toString();
+  process.env.VERCEL_ENV = 'production';
+  process.env.ARKHE_ATLAS_INVOCATION_URL = 'https://atlas-bot-8in0.onrender.com/arkhe/invocation';
+
+  try {
+    delete process.env.ARKHE_CORE_DISPATCH_ENABLED;
+    assert.throws(() => assertCoreDispatchConfigured(['atlas']), /ARKHE_CORE_DISPATCH_ENABLED=true/);
+
+    process.env.ARKHE_CORE_DISPATCH_ENABLED = 'true';
+    assert.doesNotThrow(() => assertCoreDispatchConfigured(['atlas']));
   } finally {
     for (const name of names) restoreEnv(name, prior[name]);
   }
@@ -118,6 +150,7 @@ test('dispatchInvocation accepts only the matching signed HTTP 202 acknowledgmen
   const previous = {
     key: process.env.ARKHE_CORE_DISPATCH_PRIVATE_KEY,
     url: process.env.ARKHE_ATLAS_INVOCATION_URL,
+    vercelEnv: process.env.VERCEL_ENV,
     fetch: globalThis.fetch
   };
   let captured = null;
@@ -157,6 +190,7 @@ test('dispatchInvocation accepts only the matching signed HTTP 202 acknowledgmen
   } finally {
     restoreEnv('ARKHE_CORE_DISPATCH_PRIVATE_KEY', previous.key);
     restoreEnv('ARKHE_ATLAS_INVOCATION_URL', previous.url);
+    restoreEnv('VERCEL_ENV', previous.vercelEnv);
     globalThis.fetch = previous.fetch;
   }
 });
