@@ -63,6 +63,10 @@ test('Core dispatch signs the exact body and targets a fixed investigator audien
 });
 
 test('Core dispatch target comes from service allowlist, not request body', () => {
+  assert.throws(() => resolveCoreDispatchTarget('atlas', {
+    ARKHE_ATLAS_DISPATCH_URL: 'https://atlas-bot-8in0.onrender.com/arkhe/invocation'
+  }), /producción queda bloqueada/);
+
   const target = resolveCoreDispatchTarget('aletheia', {
     ARKHE_ALETHEIA_DISPATCH_URL: 'https://aletheia-preview.onrender.com/arkhe/invocation'
   });
