@@ -5,6 +5,7 @@ import fs from 'node:fs';
 const read = name => fs.readFileSync(new URL('../' + name, import.meta.url), 'utf8');
 const core = read('api/arkhe-core.js');
 const migration = read('supabase/migrations/20261011054000_complete_invocation_atomically.sql');
+const dispatchMigration = read('supabase/migrations/20261011053000_signed_invocation_dispatch.sql');
 const start = core.indexOf('async function actionCompleteInvocation');
 const end = core.indexOf('async function actionFailInvocation', start);
 const completion = core.slice(start, end);
@@ -46,7 +47,7 @@ test('A4 failure transition is bound to the claimed dispatch and uses an atomic 
   assert.match(failure, /arkhe_fail_invocation_atomically/);
   assert.match(failure, /p_dispatch_id: dispatchId/);
   assert.doesNotMatch(failure, /\.from\(['"]convocatorias_ronda['"]\)\s*\.update\(/);
-  assert.match(migration, /FUNCTION public\.arkhe_fail_invocation_atomically/);
-  assert.match(migration, /Dispatch is no longer active; it cannot fail this invocation/);
-  assert.match(migration, /Completed invocation cannot be marked as failed/);
+  assert.match(dispatchMigration, /FUNCTION public\.arkhe_fail_invocation_atomically/);
+  assert.match(dispatchMigration, /Dispatch is no longer active; it cannot fail this invocation/);
+  assert.match(dispatchMigration, /Completed invocation cannot be marked as failed/);
 });
