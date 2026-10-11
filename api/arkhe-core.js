@@ -839,6 +839,35 @@ export default async function handler(req, res) {
 
     let result;
     switch (body.action) {
+      case 'preflight_despacho': {
+        const participantIds = ids(body.investigadores);
+        const servicesByInvestigator = {
+          [INVESTIGATOR_IDS.atlas]: 'atlas',
+          [INVESTIGATOR_IDS.aletheia]: 'aletheia',
+          [INVESTIGATOR_IDS.tekton]: 'tekton'
+        };
+        const serviceIds = participantIds.map(id => {
+          const serviceId = servicesByInvestigator[id];
+          if (!serviceId) {
+            const invalid = new Error('Sólo se pueden despachar investigadores con identidad de servicio registrada.');
+            invalid.status = 400;
+            throw invalid;
+          }
+          return serviceId;
+        });
+
+        // Read-only readiness check: validates Preview isolation, signing key,
+        // allowed target hosts, and the exact endpoint before a round is created.
+        assertCoreDispatchConfigured(serviceIds);
+        result = {
+          dispatch_ready: true,
+          service_ids: serviceIds,
+          environment: process.env.VERCEL_ENV,
+          protocol: 'arkhe-core-dispatch-v1',
+          automatic_retry: false
+        };
+        break;
+      }
       case 'iniciar_ronda':
         result = await actionStartRound(supabase, body, humanIdentity);
         break;
