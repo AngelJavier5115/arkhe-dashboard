@@ -56,4 +56,72 @@ El script `tests/a4-completion-rpc.sh` cubre el ciclo de recuperación: despacho
 - Los PR firmados de Atlas (#3), Aletheia (#2) y Tekton (#2) también siguen Draft. Sus CI están verdes, pero sus servicios activos no se modificaron.
 - No fusionar, activar producción, cambiar secretos ni desplegar bots productivos como parte de este checkpoint.
 
+
+## 6. Staging gratuito creado y probado — 2026-10-11
+
+Se creó el proyecto separado `arkhe-a4-staging` en la organización `Arkhe`:
+
+- Project ref: `axfqtovorxohkpkkgcul`
+- Región: `us-west-1`
+- Estado observado: `ACTIVE_HEALTHY`
+- Coste devuelto por la herramienta de facturación para el proyecto Free: `0 USD/mes` (el plan Free puede pausar proyectos inactivos; revisar el panel de uso).
+- La base nueva comenzó vacía. No se copiaron datos de `arkhe-core`, nodos reales ni credenciales.
+
+El archivo `tests/staging/a4-staging-foundation.sql` reproduce el contrato mínimo de tablas y funciones de Core requerido por A.4 y crea sólo fixtures sintéticas. Está marcado STAGING-ONLY y no pertenece a `supabase/migrations`; no debe aplicarse a la base compartida.
+
+### Migraciones aplicadas en staging
+
+La historia de `arkhe-a4-staging` registra 11 pasos:
+
+- `a4_staging_foundation`
+- `create_core_request_nonces_staging`
+- `create_human_auth_tables_staging`
+- `align_human_auth_principal_staging`
+- `one_active_webauthn_challenge_staging`
+- `bound_webauthn_attempts_staging`
+- `recent_human_reauthentication_staging`
+- `require_challenge_investigator_staging`
+- `guard_human_credential_revocation_staging`
+- `signed_invocation_dispatch_staging`
+- `complete_invocation_atomically_staging`
+
+Auditoría posterior: las RPC de issue, claim, completion y reconciliation existen; 4 investigadores sintéticos, 4 participaciones de staging y 3 perfiles de bot. No hay credenciales, sesiones ni challenges reales registrados.
+
+### Prueba ejecutada directamente en la base aislada
+
+Una prueba SQL dentro de `arkhe-a4-staging` verificó:
+
+1. despacho emitido y reclamado;
+2. finalización atómica exitosa;
+3. repetición exacta idempotente;
+4. reconciliación de un despacho reclamado envejecido;
+5. rechazo de finalización tardía del despacho revocado;
+6. nueva finalización con un despacho nuevo autorizado.
+
+La prueba eliminó sus rondas, convocatorias, despachos e intervenciones sintéticas. Consulta posterior: cero filas residuales del test. Esto valida las RPC contra el Postgres alojado de staging, pero no es todavía una prueba HTTP/E2E con una passkey real ni con un bot desplegado.
+
+### Preview de Vercel — configuración pública
+
+Se añadieron exclusivamente al target Preview de la rama `security/a4-idempotent-completion`:
+
+- `VITE_SUPABASE_URL` apuntando al proyecto de staging;
+- `VITE_SUPABASE_KEY` con la clave pública/publishable;
+- `ARKHE_AUTH_RP_ID` y `ARKHE_AUTH_ORIGIN` para el alias estable de rama;
+- `ARKHE_AUTH_RP_NAME`.
+
+No se creó ninguna variable de Production ni se tocaron variables de los bots activos.
+
+### Bloqueo de configuración para WebAuthn E2E
+
+Aún faltan, sólo en el Preview de esta rama:
+
+- `SUPABASE_SERVICE_ROLE_KEY` del proyecto `arkhe-a4-staging`, de tipo sensitive;
+- `ARKHE_AUTH_BOOTSTRAP_SECRET`, elegido y guardado por Ángel sin compartirlo en chat;
+- `ARKHE_AUTH_BOOTSTRAP_EXPIRES_AT`, que se añadirá justo antes de la ventana de inscripción inicial y se retirará junto con el secreto cuando exista una credencial principal;
+- una redeploy de Preview posterior a la configuración segura.
+
+Las claves/URLs de despacho centrales y las credenciales públicas de despacho de los bots tampoco están configuradas. Los destinos `*-preview.onrender.com` continúan siendo nombres previstos, no servicios confirmados; los tres servicios actuales siguen en `main`.
+
+**No pedir ni pegar claves en el chat.** Ángel debe introducir la clave `service_role` y el secreto de bootstrap en Vercel Settings, cada uno como variable sensitive y con Git Branch exactamente `security/a4-idempotent-completion`, target Preview únicamente. Después se verificará sólo su presencia mediante metadata, sin leer valores; entonces se abrirá la ventana de bootstrap durante un periodo breve y se podrá realizar la inscripción de passkeys.
+
 **Regla de cierre:** A.4 sólo podrá declararse cerrado después de las pruebas E2E de WebAuthn y despacho en infraestructura aislada, con evidencia reproducible y revisión humana final. Una CI verde, por sí sola, no basta.
