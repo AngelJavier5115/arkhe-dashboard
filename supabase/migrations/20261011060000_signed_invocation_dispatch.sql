@@ -26,7 +26,6 @@ CREATE INDEX IF NOT EXISTS core_invocation_dispatches_expiry_idx
 ALTER TABLE public.core_invocation_dispatches ENABLE ROW LEVEL SECURITY;
 
 REVOKE ALL ON TABLE public.core_invocation_dispatches FROM PUBLIC, anon, authenticated;
-GRANT SELECT, INSERT, UPDATE ON TABLE public.core_invocation_dispatches TO service_role;
 
 CREATE OR REPLACE FUNCTION public.arkhe_issue_invocation_dispatch(
   p_dispatch_id uuid,
@@ -49,6 +48,13 @@ BEGIN
   END IF;
   IF p_dispatch_id IS NULL OR p_convocatoria_id IS NULL OR p_investigador_id IS NULL THEN
     RAISE EXCEPTION USING ERRCODE = '22023', MESSAGE = 'Dispatch, convocation and investigator IDs are required';
+  END IF;
+  IF p_investigador_id NOT IN (
+    '6deb143d-17c4-4d1a-a2d2-1fd9ddf2853f'::uuid,
+    '122483a9-5012-46ce-a328-5bdb08b4de01'::uuid,
+    '656726d1-8209-4240-8169-a7434074609d'::uuid
+  ) THEN
+    RAISE EXCEPTION USING ERRCODE = '42501', MESSAGE = 'Dispatch target is not an authorized Arkhé service investigator';
   END IF;
   IF p_expires_at IS NULL OR p_expires_at <= now() OR p_expires_at > now() + interval '2 minutes' THEN
     RAISE EXCEPTION USING ERRCODE = '22023', MESSAGE = 'Dispatch expiry must be in the next two minutes';
@@ -117,6 +123,27 @@ BEGIN
     RAISE EXCEPTION USING ERRCODE = '22023', MESSAGE = 'Dispatch, convocation and investigator IDs are required';
   END IF;
 
+  -- Keep the same lock order as issuance: invocation first, dispatch row second.
+  -- This prevents a deadlock between an issuer expiring an old dispatch and a
+  -- bot concurrently attempting to claim that same dispatch.
+  SELECT *
+    INTO v_convocatoria
+    FROM public.convocatorias_ronda
+   WHERE id = p_convocatoria_id
+   FOR UPDATE;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION USING ERRCODE = 'P0002', MESSAGE = 'Convocation not found';
+  END IF;
+
+  IF v_convocatoria.investigador_id IS DISTINCT FROM p_investigador_id THEN
+    RAISE EXCEPTION USING ERRCODE = '42501', MESSAGE = 'Convocation is not assigned to the authenticated investigator';
+  END IF;
+
+  IF v_convocatoria.estado NOT IN ('enviada', 'pendiente') THEN
+    RAISE EXCEPTION USING ERRCODE = 'P0001', MESSAGE = 'Convocation state does not allow dispatch claim';
+  END IF;
+
   SELECT *
     INTO v_dispatch
     FROM public.core_invocation_dispatches
@@ -133,29 +160,11 @@ BEGIN
   END IF;
 
   IF v_dispatch.expires_at <= now() OR v_dispatch.status = 'expired' THEN
-    UPDATE public.core_invocation_dispatches
-       SET status = 'expired'
-     WHERE dispatch_id = p_dispatch_id AND status = 'issued';
     RAISE EXCEPTION USING ERRCODE = 'P0001', MESSAGE = 'Signed dispatch expired; do not retry automatically';
   END IF;
 
   IF v_dispatch.status <> 'issued' THEN
     RAISE EXCEPTION USING ERRCODE = '23505', MESSAGE = 'Signed dispatch has already been claimed or revoked; do not replay';
-  END IF;
-
-  SELECT *
-    INTO v_convocatoria
-    FROM public.convocatorias_ronda
-   WHERE id = p_convocatoria_id
-   FOR UPDATE;
-
-  IF NOT FOUND THEN
-    RAISE EXCEPTION USING ERRCODE = 'P0002', MESSAGE = 'Convocation not found';
-  END IF;
-
-  IF v_convocatoria.investigador_id IS DISTINCT FROM p_investigador_id
-     OR v_convocatoria.estado NOT IN ('enviada', 'pendiente') THEN
-    RAISE EXCEPTION USING ERRCODE = '42501', MESSAGE = 'Convocation is not available to the authenticated investigator';
   END IF;
 
   UPDATE public.core_invocation_dispatches
