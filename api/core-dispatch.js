@@ -24,6 +24,12 @@ function normalizePem(value) {
   return String(value ?? '').replace(/\\n/g, '\n').trim();
 }
 
+function configError(message) {
+  const error = new Error(message);
+  error.status = 503;
+  return error;
+}
+
 export function buildCoreDispatchPayload({
   serviceId,
   timestamp,
@@ -108,27 +114,44 @@ function targetUrl(serviceId) {
 
   const configured = process.env[target.env];
   if (!configured) {
-    throw new Error(target.env + ' no está configurado.');
+    throw configError(target.env + ' no está configurado.');
   }
 
   let url;
   try {
     url = new URL(configured);
   } catch {
-    throw new Error(target.env + ' no contiene una URL válida.');
+    throw configError(target.env + ' no contiene una URL válida.');
+  }
+
+  const vercelEnv = process.env.VERCEL_ENV;
+  const hostIsRender = url.hostname.endsWith('.onrender.com');
+  const isProductionHost = url.hostname === target.host;
+  let environmentTargetAllowed = false;
+
+  if (vercelEnv === 'preview') {
+    // A Preview deployment must never send a signed request to the live bot.
+    environmentTargetAllowed = hostIsRender &&
+      !isProductionHost &&
+      /(?:preview|staging|test)/i.test(url.hostname);
+  } else if (vercelEnv === 'production') {
+    environmentTargetAllowed = isProductionHost &&
+      process.env.ARKHE_CORE_DISPATCH_ENABLED === 'true';
   }
 
   if (
     url.protocol !== 'https:' ||
-    url.hostname !== target.host ||
+    !environmentTargetAllowed ||
     url.pathname !== '/arkhe/invocation' ||
     url.username ||
     url.password ||
     url.search ||
     url.hash
   ) {
-    throw new Error(
-      target.env + ' debe usar HTTPS y el endpoint de invocación aprobado para ' + serviceId + '.'
+    throw configError(
+      target.env + ' no coincide con el entorno de despliegue autorizado. ' +
+      'Preview requiere un servicio Render de prueba; producción requiere ' +
+      'ARKHE_CORE_DISPATCH_ENABLED=true.'
     );
   }
 
@@ -136,11 +159,26 @@ function targetUrl(serviceId) {
 }
 
 export function assertCoreDispatchConfigured(serviceIds) {
-  if (!process.env.ARKHE_CORE_DISPATCH_PRIVATE_KEY) {
-    throw new Error('ARKHE_CORE_DISPATCH_PRIVATE_KEY no está configurado para despachar convocatorias.');
+  const privateKeyPem = process.env.ARKHE_CORE_DISPATCH_PRIVATE_KEY;
+  if (!privateKeyPem) {
+    throw configError('ARKHE_CORE_DISPATCH_PRIVATE_KEY no está configurado para despachar convocatorias.');
   }
+
+  let privateKey;
+  try {
+    privateKey = createPrivateKey(normalizePem(privateKeyPem));
+  } catch {
+    throw configError('ARKHE_CORE_DISPATCH_PRIVATE_KEY no es una llave privada válida.');
+  }
+  if (privateKey.asymmetricKeyType !== 'ed25519') {
+    throw configError('ARKHE_CORE_DISPATCH_PRIVATE_KEY debe ser Ed25519.');
+  }
+
   const unique = [...new Set(serviceIds)];
-  if (!unique.length) throw new Error('No hay investigadores seleccionados para despacho.');
+  if (!unique.length) throw configError('No hay investigadores seleccionados para despacho.');
+  if (!['preview', 'production'].includes(process.env.VERCEL_ENV)) {
+    throw configError('El despacho sólo se permite desde un entorno Vercel Preview o Production definido.');
+  }
   for (const serviceId of unique) targetUrl(serviceId);
 }
 
