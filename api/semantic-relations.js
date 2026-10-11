@@ -84,8 +84,11 @@ async function enforceTlacuiloPreconditions(supabase) {
     .select('id, contenido')
     .in('id', [policy.sourceNodeId, policy.targetNodeId]);
 
-  if (nodesError || !Array.isArray(nodes) || nodes.length !== 2) {
-    throw httpError('Tlacuilo no pudo verificar los dos nodos aprobados; no se escribió ninguna relación.', 409);
+  if (nodesError || !Array.isArray(nodes)) {
+    throw httpError('Tlacuilo no pudo consultar los nodos aprobados; no se escribió ninguna relación.', 503);
+  }
+  if (nodes.length !== 2) {
+    throw httpError('Tlacuilo no encontró ambos nodos aprobados; no se escribió ninguna relación.', 409);
   }
 
   const nodeMap = new Map(nodes.map(node => [Number(node.id), node]));
