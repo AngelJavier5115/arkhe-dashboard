@@ -65,7 +65,11 @@ SQL
 
 # Once Tlacuilo successfully claims its one-shot pair, a later ordinary writer
 # must not add a second relation for the same unordered pair.
-if psql -v ON_ERROR_STOP=1 -c "INSERT INTO public.arkhe_semantic_relations (source_node_id,target_node_id,provenance) VALUES (6,5,'{\\"delegation\\":{\\"policy_id\\":\\"unrelated-later-policy\\"}}'::jsonb);" >"$LOG_FILE" 2>&1; then
+if psql -v ON_ERROR_STOP=1 >"$LOG_FILE" 2>&1 <<'SQL'
+INSERT INTO public.arkhe_semantic_relations (source_node_id,target_node_id,provenance)
+VALUES (6,5,'{"delegation":{"policy_id":"unrelated-later-policy"}}'::jsonb);
+SQL
+then
   cat "$LOG_FILE"
   echo "FAIL: a later ordinary relation was allowed to duplicate Tlacuilo's occupied pair." >&2
   exit 1
@@ -177,7 +181,11 @@ if [[ -z "$LOCK_HELD" ]]; then
   echo "FAIL: Tlacuilo transaction did not signal that its pair lock was held." >&2
   exit 1
 fi
-if psql -v ON_ERROR_STOP=1 -c "INSERT INTO public.arkhe_semantic_relations (source_node_id,target_node_id,provenance) VALUES (6,5,'{\\"delegation\\":{\\"policy_id\\":\\"concurrent-later-policy\\"}}'::jsonb);" >"$RACE_LOG" 2>&1; then
+if psql -v ON_ERROR_STOP=1 >"$RACE_LOG" 2>&1 <<'SQL'
+INSERT INTO public.arkhe_semantic_relations (source_node_id,target_node_id,provenance)
+VALUES (6,5,'{"delegation":{"policy_id":"concurrent-later-policy"}}'::jsonb);
+SQL
+then
   wait "$FIRST_PID"
   cat "$RACE_LOG"
   echo "FAIL: an ordinary insert duplicated the pair after Tlacuilo won the race." >&2
