@@ -156,7 +156,8 @@ test('dispatchInvocation accepts only the matching signed HTTP 202 acknowledgmen
   let captured = null;
 
   process.env.ARKHE_CORE_DISPATCH_PRIVATE_KEY = privateKeyPem;
-  process.env.ARKHE_ATLAS_INVOCATION_URL = 'https://atlas-bot-8in0.onrender.com/arkhe/invocation';
+  process.env.ARKHE_ATLAS_INVOCATION_URL = 'https://arkhe-atlas-preview.onrender.com/arkhe/invocation';
+  process.env.VERCEL_ENV = 'preview';
   globalThis.fetch = async (url, init) => {
     captured = { url, init };
     const dispatchId = init.headers['x-arkhe-dispatch-id'];
