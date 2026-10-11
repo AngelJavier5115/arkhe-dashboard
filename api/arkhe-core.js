@@ -93,6 +93,17 @@ function uuid(value, field) {
   return value;
 }
 
+function requireUuidShape(value, field, { optional = false } = {}) {
+  if ((value === undefined || value === null || value === '') && optional) return null;
+  if (typeof value !== 'string' ||
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)) {
+    const invalid = new Error(field + ' debe ser un UUID válido.');
+    invalid.status = 400;
+    throw invalid;
+  }
+  return value;
+}
+
 function ids(value) {
   if (!Array.isArray(value) || value.length === 0) {
     throw new Error('participantes debe ser un arreglo con al menos un investigador.');
@@ -440,8 +451,8 @@ function raiseMappedCompletionError(error) {
 
 async function actionCompleteInvocation(supabase, body, serviceIdentity) {
   const investigadorId = requireBoundInvestigator(serviceIdentity);
-  const rondaId = uuid(body.ronda_id, 'ronda_id');
-  const convocatoriaId = uuid(body.convocatoria_id, 'convocatoria_id');
+  const rondaId = requireUuidShape(body.ronda_id, 'ronda_id');
+  const convocatoriaId = requireUuidShape(body.convocatoria_id, 'convocatoria_id');
 
   if (body.investigador_id && body.investigador_id !== investigadorId) {
     const forbidden = new Error('El investigador declarado no coincide con la identidad del servicio.');
@@ -478,6 +489,44 @@ async function actionCompleteInvocation(supabase, body, serviceIdentity) {
   // the RPC returns the original intervention for an exact replay, but rejects
   // a different payload. State checks belong inside the locked transaction.
   const incomingMetadata = body.metadata ?? {};
+  if (!incomingMetadata || typeof incomingMetadata !== 'object' || Array.isArray(incomingMetadata)) {
+    const invalid = new Error('metadata debe ser un objeto JSON.');
+    invalid.status = 400;
+    throw invalid;
+  }
+
+  const tipo = body.tipo ?? 'perspectiva';
+  if (typeof tipo !== 'string' || !tipo.trim() || tipo.trim().length > 80) {
+    const invalid = new Error('tipo debe ser un texto de entre 1 y 80 caracteres.');
+    invalid.status = 400;
+    throw invalid;
+  }
+
+  if (typeof body.contenido !== 'string' || !body.contenido.trim() || body.contenido.trim().length > 50000) {
+    const invalid = new Error('contenido debe contener entre 1 y 50000 caracteres.');
+    invalid.status = 400;
+    throw invalid;
+  }
+  const contenido = body.contenido.trim();
+
+  const respondeA = requireUuidShape(
+    body.responde_a_intervencion_id ?? convocatoria.foco_intervencion_id,
+    'responde_a_intervencion_id',
+    { optional: true }
+  );
+  let nodoId = body.nodo_id ?? null;
+  if (nodoId !== null) {
+    const validNodeShape = typeof nodoId === 'number'
+      ? Number.isSafeInteger(nodoId)
+      : typeof nodoId === 'string' && /^[0-9]+$/.test(nodoId);
+    if (!validNodeShape || !Number.isSafeInteger(Number(nodoId)) || Number(nodoId) <= 0) {
+      const invalid = new Error('nodo_id debe ser un entero positivo.');
+      invalid.status = 400;
+      throw invalid;
+    }
+    nodoId = Number(nodoId);
+  }
+
   const provenanceLevel = incomingMetadata.nivel_procedencia ?? null;
 
   if (provenanceLevel === 'provider-response-attested') {
@@ -497,10 +546,6 @@ async function actionCompleteInvocation(supabase, body, serviceIdentity) {
     }
   }
 
-  const tipo = body.tipo ?? 'perspectiva';
-  const contenido = body.contenido;
-  const respondeA = body.responde_a_intervencion_id ?? convocatoria.foco_intervencion_id ?? null;
-  const nodoId = body.nodo_id ?? null;
   const metadata = {
     ...incomingMetadata,
     identidad_version: body.identidad_version ?? null,
