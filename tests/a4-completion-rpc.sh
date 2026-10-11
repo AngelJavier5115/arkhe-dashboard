@@ -183,7 +183,7 @@ fi
 
 # Concurrency test: one transaction completes and holds the invocation row
 # lock; the second identical request waits and returns the original intervention.
-psql -v ON_ERROR_STOP=1 -c "TRUNCATE public.intervenciones_ronda, public.convocatorias_ronda;"
+psql -v ON_ERROR_STOP=1 -c "TRUNCATE public.intervenciones_ronda, public.core_invocation_dispatches, public.convocatorias_ronda;"
 psql -v ON_ERROR_STOP=1 -c "INSERT INTO public.convocatorias_ronda (
   id,ronda_id,convocada_por,investigador_id,tipo_convocatoria,estado,correlation_id
 ) VALUES (
