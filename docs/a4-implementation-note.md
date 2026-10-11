@@ -120,8 +120,8 @@ No se creó ninguna variable de Production ni se tocaron variables de los bots a
 ### Configuración de Preview para WebAuthn E2E — estado 2026-10-11
 
 - `SUPABASE_SERVICE_ROLE_KEY` está configurada como variable sensible, sólo para Preview y la rama `security/a4-idempotent-completion`. Su valor corresponde a la clave secreta del proyecto aislado; no fue leído ni registrado en documentación.
-- `ARKHE_AUTH_BOOTSTRAP_SECRET` está configurada como variable sensible con el mismo alcance. Ángel conserva su valor en su gestor de contraseñas; no se comparte por chat.
-- `ARKHE_AUTH_BOOTSTRAP_EXPIRES_AT` está configurada para `2026-10-11T19:00:00.000Z` (13:00 en America/Mexico_City ese día). Si la ventana caduca antes del registro, hay que extenderla manualmente por un intervalo breve y volver a desplegar.
+- La revisión de metadatos de Vercel encontró dos entradas sensibles de `ARKHE_AUTH_BOOTSTRAP_SECRET` para Preview: una general para Preview y otra limitada a `security/a4-idempotent-completion`. No se leyeron ni copiaron sus valores.
+- La consulta más reciente de metadatos de Vercel devuelve `ARKHE_AUTH_BOOTSTRAP_EXPIRES_AT=2026-10-11T20:00:00.000Z` (14:00 en America/Mexico_City). Esa hora ya pasó al realizar la verificación manual posterior; tratar la ventana como expirada y no reabrirla salvo una nueva prueba inicial autorizada. Este valor difiere del vencimiento anotado en una revisión anterior. La función de bootstrap también exige que aún no exista ninguna credencial.
 - Se realizó una nueva implementación de Preview después de configurar las variables; Vercel la reportó READY.
 - `VITE_SUPABASE_URL`, `VITE_SUPABASE_KEY`, `ARKHE_AUTH_RP_ID`, `ARKHE_AUTH_ORIGIN` y `ARKHE_AUTH_RP_NAME` están acotadas a Preview y a esta rama.
 
@@ -145,3 +145,26 @@ Se corrigió la selección de interfaz en la misma rama `security/a4-idempotent-
 Las copias canónicas de las migraciones usadas en este staging se guardan bajo `tests/staging/migrations/` y el SQL de módulos vacíos en `tests/staging/dashboard-design-empty-modules.sql`. No forman una autorización para aplicarlas a la base compartida.
 
 **Regla de cierre:** A.4 sólo podrá declararse cerrado después de las pruebas E2E de WebAuthn y despacho en infraestructura aislada, con evidencia reproducible y revisión humana final. Una CI verde, por sí sola, no basta.
+
+
+## 8. Prueba manual WebAuthn desde dispositivos — 2026-10-11
+
+Evidencia observada por el operador en el Preview aislado `security/a4-idempotent-completion`:
+
+- La interfaz de Gobierno humano mostró primero una credencial activa (`Principal`).
+- Tras el registro adicional desde un Galaxy A14 con Android 15, la API/UI mostró dos credenciales activas: `Principal` y `Credencial adicional`.
+- En la sesión posterior desde el iPhone, la interfaz mostró la sesión autenticada, reautenticación reciente y dos credenciales activas.
+- La marca `Último uso` de `Credencial adicional` avanzó a las 17:11:32 hora local, mientras la de `Principal` permanecía en 16:13:57. Es evidencia de que el servidor observó un uso de la credencial adicional; no se interpreta como prueba suficiente, por sí sola, de qué proveedor sincronizó la passkey.
+- El operador informó que `AngelGg` estaba seleccionada durante la comprobación de Google/Chrome en el teléfono de prueba y que retiró su cuenta del Galaxy al terminar.
+- No se revocó ninguna credencial, no se inició una ronda y no se despacharon convocatorias reales.
+
+**Alcance:** prueba manual satisfactoria del registro de una segunda credencial y uso posterior observado en Preview. No sustituye la prueba completa de recuperación tras limpiar el dispositivo, ni la prueba de despacho Core→bot. La asociación recuperable con la cuenta de Google debe considerarse pendiente hasta que se pueda verificar explícitamente desde ese proveedor.
+
+## 9. Saneamiento pendiente y siguiente puerta
+
+- Retirar desde Vercel Settings las dos entradas de `ARKHE_AUTH_BOOTSTRAP_SECRET` y la entrada `ARKHE_AUTH_BOOTSTRAP_EXPIRES_AT` cuando el operador pueda hacerlo manualmente. El conector consultado permite inspeccionar/editar variables, pero no ofreció una operación de eliminación; no se ha afirmado que estas entradas hayan sido borradas. Mantener `SUPABASE_SERVICE_ROLE_KEY` intacta y sensible.
+- Mantener la PR #5 en Draft y las tres PR firmadas de bot en Draft. Sus checks de cliente firmado están en verde, pero las variables de despacho y los servicios Preview separados aún no están configurados.
+- Siguiente puerta técnica: retirar bootstrap temporal, confirmar configuración de Preview sin revelar valores, preparar claves Ed25519 distintas para Core y cada investigador, configurar destinos Preview aislados para Atlas/Aletheia/Tekton y ejecutar la prueba HTTP/E2E de reclamación única, finalización atómica, conflicto de replay y reconciliación humana.
+- No aplicar las migraciones A.4 a Supabase compartido, no modificar variables de los servicios Render que apuntan a `main` y no fusionar las PR hasta reunir la evidencia E2E y completar revisión humana.
+
+**Regla operativa:** no pegar claves privadas, secretos de bootstrap ni `service_role` en chat, documentación o issues.
