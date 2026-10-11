@@ -51,6 +51,10 @@ test('Core outbound dispatch signature binds service audience, dispatch ID and e
 });
 
 test('Core dispatch endpoint is selected by investigator allowlist and fails closed without Preview configuration', () => {
+  assert.throws(() => resolveCoreDispatchTarget('atlas', {
+    ARKHE_ATLAS_DISPATCH_URL: 'https://atlas-bot-8in0.onrender.com/arkhe/invocation'
+  }), /producción queda bloqueada/);
+
   assert.equal(resolveCoreDispatchTarget('atlas', {
     ARKHE_ATLAS_DISPATCH_URL: 'https://atlas-preview.onrender.com/arkhe/invocation'
   }).url, 'https://atlas-preview.onrender.com/arkhe/invocation');
