@@ -108,12 +108,19 @@ INSERT INTO public.convocatorias_ronda (
 ) VALUES (
   'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
   'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
-  'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
-  'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+  '2a003935-f248-442c-96fc-dcee29c4d41a',
+  '6deb143d-17c4-4d1a-a2d2-1fd9ddf2853f',
   'perspectiva', 'enviada',
   'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee'
 );
 SQL
+
+DISPATCH_MIGRATION="supabase/migrations/20261011053000_signed_invocation_dispatch.sql"
+if [[ ! -f "$DISPATCH_MIGRATION" ]]; then
+  echo "FAIL: signed dispatch migration not found: $DISPATCH_MIGRATION" >&2
+  exit 1
+fi
+psql -v ON_ERROR_STOP=1 -f "$DISPATCH_MIGRATION"
 
 MIGRATION="supabase/migrations/20261011054000_complete_invocation_atomically.sql"
 if [[ ! -f "$MIGRATION" ]]; then
@@ -122,15 +129,22 @@ if [[ ! -f "$MIGRATION" ]]; then
 fi
 psql -v ON_ERROR_STOP=1 -f "$MIGRATION"
 
-DISPATCH_MIGRATION="supabase/migrations/20261011060000_signed_invocation_dispatch.sql"
-if [[ ! -f "$DISPATCH_MIGRATION" ]]; then
-  echo "FAIL: signed dispatch migration not found: $DISPATCH_MIGRATION" >&2
-  exit 1
-fi
-psql -v ON_ERROR_STOP=1 -f "$DISPATCH_MIGRATION"
+psql -v ON_ERROR_STOP=1 -c "select public.arkhe_issue_invocation_dispatch(
+  '11111111-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+  'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+  '6deb143d-17c4-4d1a-a2d2-1fd9ddf2853f',
+  '2a003935-f248-442c-96fc-dcee29c4d41a',
+  now() + interval '90 seconds'
+);"
+psql -v ON_ERROR_STOP=1 -c "select public.arkhe_claim_invocation_dispatch(
+  '11111111-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+  'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+  '6deb143d-17c4-4d1a-a2d2-1fd9ddf2853f'
+);"
 
 CALL="select public.arkhe_complete_invocation_atomically(
   'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+  '11111111-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
   'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
   'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
   'perspectiva',
@@ -162,6 +176,7 @@ test "$INTERVENTION_COUNT" = "1"
 # than silently treating new content as an exact replay.
 if psql -v ON_ERROR_STOP=1 -c "select public.arkhe_complete_invocation_atomically(
   'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+  '11111111-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
   'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
   'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
   'perspectiva',
@@ -194,11 +209,24 @@ psql -v ON_ERROR_STOP=1 -c "INSERT INTO public.convocatorias_ronda (
   'perspectiva','enviada',
   'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee'
 );"
+psql -v ON_ERROR_STOP=1 -c "select public.arkhe_issue_invocation_dispatch(
+  '11111111-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+  'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+  '6deb143d-17c4-4d1a-a2d2-1fd9ddf2853f',
+  '2a003935-f248-442c-96fc-dcee29c4d41a',
+  now() + interval '90 seconds'
+);"
+psql -v ON_ERROR_STOP=1 -c "select public.arkhe_claim_invocation_dispatch(
+  '11111111-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+  'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+  '6deb143d-17c4-4d1a-a2d2-1fd9ddf2853f'
+);"
 rm -f "$LOCK_READY"
 psql -v ON_ERROR_STOP=1 >"$FIRST_LOG" 2>&1 <<'SQL' &
 BEGIN;
 SELECT public.arkhe_complete_invocation_atomically(
   'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+  '11111111-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
   'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
   'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
   'perspectiva',
