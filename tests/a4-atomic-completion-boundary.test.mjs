@@ -36,14 +36,17 @@ test('atomic completion migration locks invocation row and replays only an ident
 });
 
 
-test('A4 failure transition uses an atomic state guard and never overwrites a completed invocation', () => {
+test('A4 failure transition is bound to the claimed dispatch and uses an atomic RPC', () => {
   const startFail = core.indexOf('async function actionFailInvocation');
   const endFail = core.indexOf('async function actionOpenDebate', startFail);
   assert.ok(startFail >= 0 && endFail > startFail, 'actionFailInvocation boundaries must exist');
   const failure = core.slice(startFail, endFail);
 
-  assert.match(failure, /\.eq\('id', convocatoriaId\)[\s\S]*?\.eq\('investigador_id', investigadorId\)[\s\S]*?\.in\('estado', \['enviada', 'pendiente'\]\)/);
-  assert.match(failure, /\.maybeSingle\(\)/);
-  assert.match(failure, /current\.estado === 'error'[\s\S]*?idempotent_replay: true/);
-  assert.match(failure, /current\.estado === 'completada'[\s\S]*?status = 409/);
+  assert.match(failure, /requireUuidShape\(body\.dispatch_id, 'dispatch_id'\)/);
+  assert.match(failure, /arkhe_fail_invocation_atomically/);
+  assert.match(failure, /p_dispatch_id: dispatchId/);
+  assert.doesNotMatch(failure, /\.from\(['"]convocatorias_ronda['"]\)\s*\.update\(/);
+  assert.match(migration, /FUNCTION public\.arkhe_fail_invocation_atomically/);
+  assert.match(migration, /Dispatch is no longer active; it cannot fail this invocation/);
+  assert.match(migration, /Completed invocation cannot be marked as failed/);
 });
