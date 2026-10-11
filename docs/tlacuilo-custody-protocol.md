@@ -1,6 +1,6 @@
 # Tlacuilo — criterio de custodia para operaciones técnicas
 
-**Estado:** propuesta de implementación en rama aislada `security/tlacuilo-delegation`. No está aplicada a Supabase ni desplegada en producción.
+**Estado:** la API del prototipo sigue en la rama aislada `security/tlacuilo-delegation`; no se ha fusionado ni activado en producción. Las migraciones de nonce y uso único sí aparecen registradas como aplicadas en el Supabase compartido. El preflight firmado real desde iSH respondió HTTP 200 y la consulta posterior confirmó cero relaciones y cero eventos semánticos.
 
 ## Raíz conceptual
 
