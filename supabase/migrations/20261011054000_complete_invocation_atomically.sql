@@ -22,6 +22,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS intervenciones_ronda_convocatoria_id_unique_id
 
 CREATE OR REPLACE FUNCTION public.arkhe_complete_invocation_atomically(
   p_convocatoria_id uuid,
+  p_dispatch_id uuid,
   p_ronda_id uuid,
   p_investigador_id uuid,
   p_tipo text,
@@ -38,13 +39,14 @@ SET search_path = public
 AS $$
 DECLARE
   v_convocatoria public.convocatorias_ronda%ROWTYPE;
+  v_dispatch public.core_invocation_dispatches%ROWTYPE;
   v_intervencion public.intervenciones_ronda%ROWTYPE;
   v_existente public.intervenciones_ronda%ROWTYPE;
   v_metadata jsonb;
   v_tiene_intervencion boolean := false;
 BEGIN
-  IF p_convocatoria_id IS NULL OR p_ronda_id IS NULL OR p_investigador_id IS NULL THEN
-    RAISE EXCEPTION USING ERRCODE = '22023', MESSAGE = 'Invocation, round and investigator IDs are required';
+  IF p_convocatoria_id IS NULL OR p_dispatch_id IS NULL OR p_ronda_id IS NULL OR p_investigador_id IS NULL THEN
+    RAISE EXCEPTION USING ERRCODE = '22023', MESSAGE = 'Invocation, dispatch, round and investigator IDs are required';
   END IF;
   IF p_fingerprint IS NULL OR p_fingerprint !~ '^[0-9a-f]{64}$' THEN
     RAISE EXCEPTION USING ERRCODE = '22023', MESSAGE = 'A SHA-256 completion fingerprint is required';
@@ -73,6 +75,28 @@ BEGIN
   IF v_convocatoria.ronda_id IS DISTINCT FROM p_ronda_id
      OR v_convocatoria.investigador_id IS DISTINCT FROM p_investigador_id THEN
     RAISE EXCEPTION USING ERRCODE = '42501', MESSAGE = 'Convocation ownership does not match the authenticated investigator';
+  END IF;
+
+  -- Every persisted intervention must be tied to the exact one-shot dispatch
+  -- currently claimed by this investigator. This is what makes manual
+  -- reconciliation safe: revoking an abandoned dispatch blocks late workers.
+  SELECT *
+    INTO v_dispatch
+    FROM public.core_invocation_dispatches
+   WHERE dispatch_id = p_dispatch_id
+     AND convocatoria_id = p_convocatoria_id
+   FOR UPDATE;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION USING ERRCODE = 'P0002', MESSAGE = 'Signed dispatch not found for this invocation';
+  END IF;
+
+  IF v_dispatch.investigador_id IS DISTINCT FROM p_investigador_id THEN
+    RAISE EXCEPTION USING ERRCODE = '42501', MESSAGE = 'Dispatch does not belong to the authenticated investigator';
+  END IF;
+
+  IF v_dispatch.status <> 'claimed' THEN
+    RAISE EXCEPTION USING ERRCODE = 'P0001', MESSAGE = 'Dispatch is no longer active; reconcile before any new dispatch';
   END IF;
 
   SELECT *
@@ -141,9 +165,9 @@ END;
 $$;
 
 REVOKE ALL ON FUNCTION public.arkhe_complete_invocation_atomically(
-  uuid, uuid, uuid, text, text, uuid, bigint, jsonb, text
+  uuid, uuid, uuid, uuid, text, text, uuid, bigint, jsonb, text
 ) FROM PUBLIC, anon, authenticated;
 
 GRANT EXECUTE ON FUNCTION public.arkhe_complete_invocation_atomically(
-  uuid, uuid, uuid, text, text, uuid, bigint, jsonb, text
+  uuid, uuid, uuid, uuid, text, text, uuid, bigint, jsonb, text
 ) TO service_role;
