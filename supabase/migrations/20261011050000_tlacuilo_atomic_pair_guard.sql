@@ -19,24 +19,30 @@ begin
   -- the same unordered pair ensures the next statement sees a prior committed row.
   perform pg_advisory_xact_lock(20261011, hashtext(pair_key));
 
-  if new.provenance #>> '{delegation,policy_id}' =
-     'tlacuilo-smoke-relation-5-6-duplicates-v1'
-  then
-    if exists (
-      select 1
-      from public.arkhe_semantic_relations existing
-      where (
-        existing.source_node_id = new.source_node_id
-        and existing.target_node_id = new.target_node_id
-      ) or (
-        existing.source_node_id = new.target_node_id
-        and existing.target_node_id = new.source_node_id
-      )
-    ) then
-      raise exception using
-        errcode = '23505',
-        message = 'Tlacuilo one-shot pair guard: a relation already exists between these nodes; do not retry automatically';
-    end if;
+  -- The delegated pair is exclusive in both directions: if Tlacuilo arrives
+  -- after any relation, reject it; if Tlacuilo arrives first, reject later
+  -- inserts for that pair too. The shared advisory lock makes both outcomes
+  -- deterministic under concurrent transactions.
+  if exists (
+    select 1
+    from public.arkhe_semantic_relations existing
+    where (
+      existing.source_node_id = new.source_node_id
+      and existing.target_node_id = new.target_node_id
+    ) or (
+      existing.source_node_id = new.target_node_id
+      and existing.target_node_id = new.source_node_id
+    )
+    and (
+      new.provenance #>> '{delegation,policy_id}' =
+        'tlacuilo-smoke-relation-5-6-duplicates-v1'
+      or existing.provenance #>> '{delegation,policy_id}' =
+        'tlacuilo-smoke-relation-5-6-duplicates-v1'
+    )
+  ) then
+    raise exception using
+      errcode = '23505',
+      message = 'Tlacuilo one-shot pair guard: the unordered node pair is occupied or sealed by the one-shot policy; do not retry automatically';
   end if;
 
   return new;
