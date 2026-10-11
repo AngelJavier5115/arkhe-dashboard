@@ -195,3 +195,29 @@ test('dispatchInvocation accepts only the matching signed HTTP 202 acknowledgmen
     globalThis.fetch = previous.fetch;
   }
 });
+
+
+test('Core dispatch is available only behind the human gate and a durable one-shot claim', async () => {
+  const { readFileSync } = await import('node:fs');
+  const core = readFileSync(new URL('../api/arkhe-core.js', import.meta.url), 'utf8');
+  const migration = readFileSync(new URL('../supabase/migrations/20261011060000_create_core_dispatch_claims.sql', import.meta.url), 'utf8');
+  const panel = readFileSync(new URL('../src/RoundGovernorPanel.jsx', import.meta.url), 'utf8');
+
+  assert.match(core, /'claim_convocation_dispatch'/);
+  assert.match(core, /case 'preflight_despacho'[\s\S]*?assertCoreDispatchConfigured/);
+  assert.match(core, /case 'convocar_investigadores'[\s\S]*?assertCoreDispatchConfigured[\s\S]*?actionCreateInvocations[\s\S]*?dispatchInvocation/);
+  assert.match(core, /async function actionClaimConvocationDispatch[\s\S]*?\.from\('core_dispatch_claims'\)[\s\S]*?\.insert/);
+  assert.match(core, /humanIdentity = await requireHumanGovernor\(req, \{ requireRecentReauth: true \}\)/);
+
+  assert.match(migration, /dispatch_id uuid PRIMARY KEY/);
+  assert.match(migration, /UNIQUE \(convocatoria_id\)/);
+  assert.match(migration, /ENABLE ROW LEVEL SECURITY/);
+  assert.match(migration, /REVOKE ALL ON TABLE public\.core_dispatch_claims FROM PUBLIC, anon, authenticated/);
+  assert.match(migration, /GRANT SELECT, INSERT ON TABLE public\.core_dispatch_claims TO service_role/);
+
+  assert.match(panel, /action: 'preflight_despacho'/);
+  assert.match(panel, /action: 'iniciar_ronda'/);
+  assert.match(panel, /action: 'convocar_investigadores'/);
+  assert.match(panel, /despachar: true/);
+  assert.match(panel, /No vuelvas a ejecutar la acción automáticamente/);
+});
