@@ -226,6 +226,9 @@ function mapDatabaseError(error) {
     return httpError('La base de datos rechazó la relación o revisión por sus reglas de integridad.', 400);
   }
   if (error?.code === '23505') {
+    if (String(error?.message ?? '').includes('Tlacuilo one-shot pair guard')) {
+      return httpError('Ya existe una relación entre los nodos aprobados; la política de Tlacuilo se detiene y no debe reintentarse automáticamente.', 409);
+    }
     return httpError('La operación encontró una restricción de unicidad (nonce repetido o política de uso único ya consumida); no reintentes automáticamente.', 409);
   }
   return httpError('No fue posible completar la operación de relaciones semánticas.', 500);
