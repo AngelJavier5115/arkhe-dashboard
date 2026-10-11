@@ -191,3 +191,16 @@ Los tres servicios actuales de producción continúan sin modificación y apunta
 ### Verificación de limpieza de Vercel
 
 La consulta de metadatos actual devuelve cero entradas generales de bootstrap y cero para `security/a4-idempotent-completion`. Sin embargo, aún devuelve una entrada `ARKHE_AUTH_BOOTSTRAP_SECRET` y una `ARKHE_AUTH_BOOTSTRAP_EXPIRES_AT` para la rama histórica `audit/a4-human-auth`, con vencimiento antiguo. La interfaz del usuario puede mostrar una diferencia de estado; confirmar ese par histórico en Vercel antes de declarar la limpieza global completa.
+
+
+## 11. Aprovisionamiento local de claves para Render Preview
+
+Se publicó una herramienta estática de uso temporal en `public/a4-ed25519-keygen.html`, accesible dentro del Preview de la rama. Usa Web Crypto para generar tres pares Ed25519 diferentes en el navegador, exporta PEM en una línea con `\\n` literal y no contiene llamadas de red (`fetch`, XHR o `sendBeacon`); una CSP con `connect-src 'none'` refuerza esa restricción. La rutina de formato se verificó con `node:crypto` y una prueba de firma/verificación. Aún debe comprobarse desde Chrome en el iPhone antes de confiar en las claves producidas ahí.
+
+Procedimiento pendiente del operador:
+1. Abrir el Preview estable y visitar `/a4-ed25519-keygen.html`.
+2. Generar un par por investigador. Copiar cada **clave privada directamente desde el navegador al campo secreto `ARKHE_SERVICE_PRIVATE_KEY`** del servicio Render que corresponda. No enviar las privadas por chat ni guardarlas en GitHub.
+3. Copiar únicamente la **clave pública** de cada par para actualizar las variables Vercel `ARKHE_ATLAS_PUBLIC_KEY`, `ARKHE_ALETHEIA_PUBLIC_KEY` y `ARKHE_TEKTON_PUBLIC_KEY`, siempre con target Preview y rama `security/a4-idempotent-completion`.
+4. Borrar la vista de claves y cerrar la página al terminar. Mantener los tres destinos de despacho de Core sin configurar hasta verificar que las claves públicas y privadas coinciden y que los checks continúan verdes.
+
+Las claves públicas de investigador que ahora existen en Vercel no tienen aún sus correspondientes privadas instaladas en Render; tratarlas como valores provisionales y reemplazarlas por las públicas de los pares que se generen en el dispositivo. La clave de firma Core→bot es otro par distinto y permanece configurada en Vercel/Render.
