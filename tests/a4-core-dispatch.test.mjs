@@ -109,7 +109,7 @@ test('Preview dispatch requires a staging Render URL and never permits the live 
     process.env.ARKHE_ATLAS_INVOCATION_URL = 'https://arkhe-atlas-preview.onrender.com/arkhe/invocation';
     assert.doesNotThrow(() => assertCoreDispatchConfigured(['atlas']));
 
-    process.env.ARKHE_ATLAS_INVOCATION_URL = 'https://arkhe-atlas-preview.onrender.com/arkhe/invocation';
+    process.env.ARKHE_ATLAS_INVOCATION_URL = 'https://atlas-bot-8in0.onrender.com/arkhe/invocation';
   process.env.VERCEL_ENV = 'preview';
     assert.throws(() => assertCoreDispatchConfigured(['atlas']), /entorno de despliegue autorizado/);
 
