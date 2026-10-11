@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { CirclePlay, ShieldCheck, ShieldAlert, LoaderCircle } from 'lucide-react';
+import { CirclePlay, ShieldCheck, ShieldAlert, Loader2 } from 'lucide-react';
 
 const INVESTIGATORS = [
   { id: '6deb143d-17c4-4d1a-a2d2-1fd9ddf2853f', name: 'Atlas', detail: 'Perspectiva independiente' },
@@ -262,7 +262,7 @@ export default function RoundGovernorPanel() {
             disabled={busy}
             className="inline-flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-xs font-semibold text-white hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {busy ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <CirclePlay className="h-4 w-4" />}
+            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <CirclePlay className="h-4 w-4" />}
             {busy ? 'Verificando y convocando…' : 'Verificar y abrir ronda'}
           </button>
         </div>
