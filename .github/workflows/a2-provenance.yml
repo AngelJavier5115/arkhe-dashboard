@@ -1,12 +1,14 @@
-name: A.4 Human Auth Audit
+name: A.4 Human Auth and Atomic Completion Audit
 
 on:
   push:
     branches:
       - audit/a4-human-auth
+      - security/a4-idempotent-completion
   pull_request:
     branches:
       - main
+      - audit/a4-human-auth
   workflow_dispatch:
 
 permissions:
@@ -19,14 +21,37 @@ concurrency:
 jobs:
   human-auth:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     permissions:
       contents: read
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: arkhe_a4_completion_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d arkhe_a4_completion_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - name: Checkout
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           persist-credentials: false
+      - name: Install PostgreSQL client
+        run: sudo apt-get update && sudo apt-get install --yes postgresql-client
+      - name: Test atomic completion migration in disposable PostgreSQL
+        env:
+          PGHOST: 127.0.0.1
+          PGPORT: 5432
+          PGUSER: postgres
+          PGPASSWORD: postgres
+          PGDATABASE: arkhe_a4_completion_test
+        run: bash tests/a4-completion-rpc.sh
       - name: Set up Node.js
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
