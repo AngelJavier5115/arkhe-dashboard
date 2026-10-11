@@ -208,7 +208,7 @@ RETURNS jsonb
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
-AS $
+AS $dispatch_function$
 DECLARE
   v_convocatoria public.convocatorias_ronda%ROWTYPE;
   v_dispatch public.core_invocation_dispatches%ROWTYPE;
@@ -258,7 +258,7 @@ BEGIN
     'claimed_at', v_dispatch.claimed_at
   );
 END;
-$;
+$dispatch_function$;
 
 
 CREATE OR REPLACE FUNCTION public.arkhe_fail_invocation_atomically(
@@ -270,7 +270,7 @@ RETURNS jsonb
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
-AS $
+AS $dispatch_function$
 DECLARE
   v_convocatoria public.convocatorias_ronda%ROWTYPE;
   v_dispatch public.core_invocation_dispatches%ROWTYPE;
@@ -334,7 +334,7 @@ BEGIN
 
   RETURN jsonb_build_object('convocatoria', to_jsonb(v_updated), 'idempotent_replay', false);
 END;
-$;
+$dispatch_function$;
 
 
 CREATE OR REPLACE FUNCTION public.arkhe_reconcile_invocation_dispatch(
@@ -347,7 +347,7 @@ RETURNS jsonb
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
-AS $
+AS $dispatch_function$
 DECLARE
   v_convocatoria public.convocatorias_ronda%ROWTYPE;
   v_dispatch public.core_invocation_dispatches%ROWTYPE;
@@ -429,7 +429,7 @@ BEGIN
     'reconciliation_note', v_updated.reconciliation_note
   );
 END;
-$;
+$dispatch_function$;
 
 REVOKE ALL ON FUNCTION public.arkhe_issue_invocation_dispatch(uuid, uuid, uuid, uuid, timestamptz)
   FROM PUBLIC, anon, authenticated;
