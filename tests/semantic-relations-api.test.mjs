@@ -792,3 +792,26 @@ test('Tlacuilo preflight reports unavailable node reads as 503, not a state conf
     assert.deepEqual(supabase.calls.filter(call => call.kind === 'rpc'), []);
   });
 });
+
+
+test('Tlacuilo existing-pair trigger conflict is reported accurately as 409 without retry', async () => {
+  await withTlacuiloKey(async () => {
+    const body = createTlacuiloBody();
+    const req = signedRequest(body, { serviceId: 'tlacuilo' });
+    const supabase = createFakeSupabase({
+      registerError: {
+        code: '23505',
+        message: 'Tlacuilo one-shot pair guard: a relation already exists between these nodes; do not retry automatically',
+      },
+    });
+    const res = createResponse();
+
+    await createSemanticRelationsHandler({ getSupabase: () => supabase })(req, res);
+
+    assert.equal(res.statusCode, 409);
+    assert.match(res.body.error, /Ya existe una relación entre los nodos aprobados/);
+    assert.match(res.body.error, /no debe reintentarse automáticamente/);
+    assert.equal(supabase.calls.filter(call => call.kind === 'rpc' && call.name === 'arkhe_register_semantic_relation').length, 1);
+    assert.equal(supabase.calls.some(call => call.kind === 'rpc' && call.name === 'arkhe_append_semantic_relation_event'), false);
+  });
+});
