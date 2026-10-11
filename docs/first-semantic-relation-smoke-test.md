@@ -60,4 +60,14 @@ Cuerpo JSON esperado:
 
 ## Estado actual
 
-La propuesta del par está documentada. La petición firmada real aún no se ejecuta. El límite de una única relación por política se apoyará en el índice único de la migración `20261010225642_enforce_tlacuilo_policy_single_use.sql`; hasta que ambas migraciones estén revisadas y aplicadas, no se autoriza ninguna escritura. En el último chequeo había cero filas en \`arkhe_semantic_relations\` y cero en \`arkhe_semantic_relation_events\`; no escribir nada hasta que el cliente firmado y el acceso autorizado estén disponibles.
+El preflight firmado real sí se ejecutó desde iSH y devolvió HTTP 200. La petición firmada de creación **NO se ha ejecutado**.
+
+La última consulta independiente de Supabase encontró:
+- 0 filas en `arkhe_semantic_relations`;
+- 0 filas en `arkhe_semantic_relation_events`;
+- 0 relaciones con la política de Tlacuilo;
+- 1 nonce de Tlacuilo, registrado como protección anti-repetición.
+
+Supabase registra las migraciones `20261010225627_allow_tlacuilo_executor_nonces` y `20261010225642_enforce_tlacuilo_policy_single_use` como aplicadas, y la consulta de solo lectura confirmó el índice único parcial. **No volver a aplicar estas migraciones** sin una nueva auditoría.
+
+Aunque el preflight y la barrera de uso único están probados, la escritura sigue bloqueada hasta terminar la auditoría del PR, confirmar el destino de despliegue y obtener autorización humana específica para la propuesta exacta.
