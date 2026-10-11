@@ -71,7 +71,7 @@ El archivo `tests/staging/a4-staging-foundation.sql` reproduce el contrato míni
 
 ### Migraciones aplicadas en staging
 
-La historia de `arkhe-a4-staging` registra 11 pasos:
+La historia de `arkhe-a4-staging` registra 11 pasos iniciales de A.4 y cinco pasos añadidos para el Dashboard árbol/red:
 
 - `a4_staging_foundation`
 - `create_core_request_nonces_staging`
@@ -84,6 +84,12 @@ La historia de `arkhe-a4-staging` registra 11 pasos:
 - `guard_human_credential_revocation_staging`
 - `signed_invocation_dispatch_staging`
 - `complete_invocation_atomically_staging`
+
+- `dashboard_design_empty_modules`
+- `semantic_relations_schema`
+- `semantic_relation_dml_lock`
+- `semantic_relation_write_api`
+- `semantic_relation_dml_relock`
 
 Auditoría posterior: las RPC de issue, claim, completion y reconciliation existen; 4 investigadores sintéticos, 4 participaciones de staging y 3 perfiles de bot. No hay credenciales, sesiones ni challenges reales registrados.
 
@@ -111,17 +117,31 @@ Se añadieron exclusivamente al target Preview de la rama `security/a4-idempoten
 
 No se creó ninguna variable de Production ni se tocaron variables de los bots activos.
 
-### Bloqueo de configuración para WebAuthn E2E
+### Configuración de Preview para WebAuthn E2E — estado 2026-10-11
 
-Aún faltan, sólo en el Preview de esta rama:
+- `SUPABASE_SERVICE_ROLE_KEY` está configurada como variable sensible, sólo para Preview y la rama `security/a4-idempotent-completion`. Su valor corresponde a la clave secreta del proyecto aislado; no fue leído ni registrado en documentación.
+- `ARKHE_AUTH_BOOTSTRAP_SECRET` está configurada como variable sensible con el mismo alcance. Ángel conserva su valor en su gestor de contraseñas; no se comparte por chat.
+- `ARKHE_AUTH_BOOTSTRAP_EXPIRES_AT` está configurada para `2026-10-11T19:00:00.000Z` (13:00 en America/Mexico_City ese día). Si la ventana caduca antes del registro, hay que extenderla manualmente por un intervalo breve y volver a desplegar.
+- Se realizó una nueva implementación de Preview después de configurar las variables; Vercel la reportó READY.
+- `VITE_SUPABASE_URL`, `VITE_SUPABASE_KEY`, `ARKHE_AUTH_RP_ID`, `ARKHE_AUTH_ORIGIN` y `ARKHE_AUTH_RP_NAME` están acotadas a Preview y a esta rama.
 
-- `SUPABASE_SERVICE_ROLE_KEY` del proyecto `arkhe-a4-staging`, de tipo sensitive;
-- `ARKHE_AUTH_BOOTSTRAP_SECRET`, elegido y guardado por Ángel sin compartirlo en chat;
-- `ARKHE_AUTH_BOOTSTRAP_EXPIRES_AT`, que se añadirá justo antes de la ventana de inscripción inicial y se retirará junto con el secreto cuando exista una credencial principal;
-- una redeploy de Preview posterior a la configuración segura.
-
-Las claves/URLs de despacho centrales y las credenciales públicas de despacho de los bots tampoco están configuradas. Los destinos `*-preview.onrender.com` continúan siendo nombres previstos, no servicios confirmados; los tres servicios actuales siguen en `main`.
+Las claves/URLs de despacho centrales y las credenciales públicas de despacho de los bots tampoco están configuradas. Los destinos `*-preview.onrender.com` continúan siendo nombres previstos, no servicios confirmados; los tres servicios activos siguen en `main`.
 
 **No pedir ni pegar claves en el chat.** Ángel debe introducir la clave `service_role` y el secreto de bootstrap en Vercel Settings, cada uno como variable sensitive y con Git Branch exactamente `security/a4-idempotent-completion`, target Preview únicamente. Después se verificará sólo su presencia mediante metadata, sin leer valores; entonces se abrirá la ventana de bootstrap durante un periodo breve y se podrá realizar la inscripción de passkeys.
+
+## 7. Diseño árbol/red integrado al Preview A.4 — 2026-10-11
+
+Se corrigió la selección de interfaz en la misma rama `security/a4-idempotent-completion` para preservar el RP ID y el alias estable de WebAuthn:
+
+- Se restauró el `src/App.jsx`, `src/index.css`, `src/KnowledgeGraph.jsx`, `src/ArkheTree.jsx` y `src/epistemicGraphModel.js` de `design/tree-network-dashboard`.
+- Se añadió `HumanAuthPanel` como entrada separada de navegación `Gobierno humano`; el panel de A.4 no reemplaza el diseño del Dashboard.
+- Se añadió una banda visible: `Preview aislado A.4 · datos sintéticos; no se muestran aquí los nodos ni las investigaciones de producción.`
+- Se creó la estructura vacía de `ideas` y `tareas` para la interfaz y se aplicaron en staging las cuatro migraciones semánticas de la rama de diseño.
+- Se verificaron ACL de lectura: las tablas semánticas están con RLS y política de sólo lectura para `anon` y `authenticated`; no hay relaciones ni eventos semánticos guardados en staging.
+- La base contiene únicamente cuatro investigadores sintéticos, una investigación-proyecto sintética y tres perfiles de bots de prueba. `investigaciones`, `rondas_investigacion`, relaciones y eventos siguen vacíos. Los contadores de nodos en cero son esperados; no se copiaron datos del proyecto compartido.
+- La CI `A.4 Human Auth and Atomic Completion Audit` terminó en verde para el commit de integración `802d8473c0d3de09464154888cbff0add2edd76d`; el deployment de Preview correspondiente aparece READY en Vercel. Esto acredita build y pruebas automatizadas, no una validación visual desde el dispositivo de Ángel.
+- La antigua etiqueta `Nodo Aletheia: Online` era texto fijo, no señal de health check. La versión de diseño evita usar esa etiqueta como prueba de conectividad.
+
+Las copias canónicas de las migraciones usadas en este staging se guardan bajo `tests/staging/migrations/` y el SQL de módulos vacíos en `tests/staging/dashboard-design-empty-modules.sql`. No forman una autorización para aplicarlas a la base compartida.
 
 **Regla de cierre:** A.4 sólo podrá declararse cerrado después de las pruebas E2E de WebAuthn y despacho en infraestructura aislada, con evidencia reproducible y revisión humana final. Una CI verde, por sí sola, no basta.
