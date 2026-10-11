@@ -122,6 +122,13 @@ if [[ ! -f "$MIGRATION" ]]; then
 fi
 psql -v ON_ERROR_STOP=1 -f "$MIGRATION"
 
+DISPATCH_MIGRATION="supabase/migrations/20261011060000_signed_invocation_dispatch.sql"
+if [[ ! -f "$DISPATCH_MIGRATION" ]]; then
+  echo "FAIL: signed dispatch migration not found: $DISPATCH_MIGRATION" >&2
+  exit 1
+fi
+psql -v ON_ERROR_STOP=1 -f "$DISPATCH_MIGRATION"
+
 CALL="select public.arkhe_complete_invocation_atomically(
   'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
   'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
@@ -237,4 +244,121 @@ FINAL_STATE="$(psql -v ON_ERROR_STOP=1 -Atq -c "select estado from public.convoc
 test "$FINAL_COUNT" = "1"
 test "$FINAL_STATE" = "completada"
 
-echo "PASS: invocation completion is atomic and idempotent; changed replays conflict; concurrent identical completions create one intervention."
+# Signed dispatch claim lifecycle: issuance is bound to Angel + a human-created
+# pending invocation; only the matching investigator may claim it once.
+psql -v ON_ERROR_STOP=1 -c "INSERT INTO public.convocatorias_ronda (
+  id,ronda_id,convocada_por,investigador_id,tipo_convocatoria,estado,correlation_id
+) VALUES (
+  '44444444-4444-4444-8444-444444444444',
+  'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+  '2a003935-f248-442c-96fc-dcee29c4d41a',
+  '6deb143d-17c4-4d1a-a2d2-1fd9ddf2853f',
+  'perspectiva','enviada',
+  '55555555-5555-4555-8555-555555555555'
+);"
+
+ISSUE_RESULT="$(psql -v ON_ERROR_STOP=1 -Atq -c "select public.arkhe_issue_invocation_dispatch(
+  '66666666-6666-4666-8666-666666666666',
+  '44444444-4444-4444-8444-444444444444',
+  '6deb143d-17c4-4d1a-a2d2-1fd9ddf2853f',
+  '2a003935-f248-442c-96fc-dcee29c4d41a',
+  now() + interval '90 seconds'
+);")"
+if ! printf '%s' "$ISSUE_RESULT" | grep -q '"status": "issued"'; then
+  printf '%s\n' "$ISSUE_RESULT"
+  echo "FAIL: dispatch was not issued." >&2
+  exit 1
+fi
+
+if psql -v ON_ERROR_STOP=1 -c "select public.arkhe_issue_invocation_dispatch(
+  '77777777-7777-4777-8777-777777777777',
+  '44444444-4444-4444-8444-444444444444',
+  '6deb143d-17c4-4d1a-a2d2-1fd9ddf2853f',
+  '2a003935-f248-442c-96fc-dcee29c4d41a',
+  now() + interval '90 seconds'
+);" >"$LOG_FILE" 2>&1; then
+  cat "$LOG_FILE"
+  echo "FAIL: a second active dispatch was issued for the same invocation." >&2
+  exit 1
+fi
+
+if psql -v ON_ERROR_STOP=1 -c "select public.arkhe_claim_invocation_dispatch(
+  '66666666-6666-4666-8666-666666666666',
+  '44444444-4444-4444-8444-444444444444',
+  '656726d1-8209-4240-8169-a7434074609d'
+);" >"$LOG_FILE" 2>&1; then
+  cat "$LOG_FILE"
+  echo "FAIL: a different investigator claimed the dispatch." >&2
+  exit 1
+fi
+if ! grep -q "not assigned to the authenticated investigator" "$LOG_FILE"; then
+  cat "$LOG_FILE"
+  echo "FAIL: wrong-investigator claim failed for an unexpected reason." >&2
+  exit 1
+fi
+
+CLAIM_RESULT="$(psql -v ON_ERROR_STOP=1 -Atq -c "select public.arkhe_claim_invocation_dispatch(
+  '66666666-6666-4666-8666-666666666666',
+  '44444444-4444-4444-8444-444444444444',
+  '6deb143d-17c4-4d1a-a2d2-1fd9ddf2853f'
+);")"
+if ! printf '%s' "$CLAIM_RESULT" | grep -q '"status": "claimed"'; then
+  printf '%s\n' "$CLAIM_RESULT"
+  echo "FAIL: the valid dispatch could not be claimed." >&2
+  exit 1
+fi
+
+if psql -v ON_ERROR_STOP=1 -c "select public.arkhe_claim_invocation_dispatch(
+  '66666666-6666-4666-8666-666666666666',
+  '44444444-4444-4444-8444-444444444444',
+  '6deb143d-17c4-4d1a-a2d2-1fd9ddf2853f'
+);" >"$LOG_FILE" 2>&1; then
+  cat "$LOG_FILE"
+  echo "FAIL: a one-shot dispatch was claimed twice." >&2
+  exit 1
+fi
+if ! grep -q "already been claimed or revoked" "$LOG_FILE"; then
+  cat "$LOG_FILE"
+  echo "FAIL: replay was rejected for an unexpected reason." >&2
+  exit 1
+fi
+
+DISPATCH_STATUS="$(psql -v ON_ERROR_STOP=1 -Atq -c "select status from public.core_invocation_dispatches where dispatch_id='66666666-6666-4666-8666-666666666666';")"
+test "$DISPATCH_STATUS" = "claimed"
+
+# An expired, unclaimed envelope cannot be claimed. Issuance of a new envelope
+# is possible only through a later explicit human dispatch request.
+psql -v ON_ERROR_STOP=1 -c "INSERT INTO public.convocatorias_ronda (
+  id,ronda_id,convocada_por,investigador_id,tipo_convocatoria,estado,correlation_id
+) VALUES (
+  '88888888-8888-4888-8888-888888888888',
+  'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+  '2a003935-f248-442c-96fc-dcee29c4d41a',
+  '122483a9-5012-46ce-a328-5bdb08b4de01',
+  'perspectiva','pendiente',
+  '99999999-9999-4999-8999-999999999999'
+);"
+psql -v ON_ERROR_STOP=1 -c "select public.arkhe_issue_invocation_dispatch(
+  'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee',
+  '88888888-8888-4888-8888-888888888888',
+  '122483a9-5012-46ce-a328-5bdb08b4de01',
+  '2a003935-f248-442c-96fc-dcee29c4d41a',
+  now() + interval '90 seconds'
+);"
+psql -v ON_ERROR_STOP=1 -c "update public.core_invocation_dispatches set expires_at=now()-interval '1 second' where dispatch_id='aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee';"
+if psql -v ON_ERROR_STOP=1 -c "select public.arkhe_claim_invocation_dispatch(
+  'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee',
+  '88888888-8888-4888-8888-888888888888',
+  '122483a9-5012-46ce-a328-5bdb08b4de01'
+);" >"$LOG_FILE" 2>&1; then
+  cat "$LOG_FILE"
+  echo "FAIL: an expired dispatch was claimed." >&2
+  exit 1
+fi
+if ! grep -q "Signed dispatch expired" "$LOG_FILE"; then
+  cat "$LOG_FILE"
+  echo "FAIL: expiry rejection did not report the expected reason." >&2
+  exit 1
+fi
+
+echo "PASS: completion is atomic/idempotent; dispatch issue is human-owned, audience-bound, one-shot and expiry-checked."
