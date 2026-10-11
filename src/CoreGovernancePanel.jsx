@@ -174,9 +174,13 @@ export default function CoreGovernancePanel({ authenticated, reauthenticatedAt }
         });
       }
     } catch (error) {
+      const uncertain = Boolean(error?.networkAmbiguous || (Number(error?.status) >= 500));
+      if (uncertain) setRoundCreationUncertain(true);
       setStatus({
-        kind: error?.networkAmbiguous ? 'warning' : 'error',
-        message: error?.message ?? 'No fue posible crear la ronda.',
+        kind: uncertain ? 'warning' : 'error',
+        message: uncertain
+          ? 'No se pudo confirmar si Arkhé Core alcanzó a crear la ronda. No la vuelvas a crear automáticamente; inspecciona el Core antes de continuar. Detalle: ' + (error?.message ?? 'error desconocido')
+          : (error?.message ?? 'No fue posible crear la ronda.'),
       });
     } finally {
       setBusy('');
@@ -299,19 +303,6 @@ export default function CoreGovernancePanel({ authenticated, reauthenticatedAt }
     }
   };
 
-  const newDispatchAfterReconcile = async invocation => {
-    if (invocation.dispatchState !== 'revoked') return;
-    updateInvocation(invocation.id, {
-      dispatchState: 'idle',
-      dispatchId: null,
-      dispatchMessage: 'El despacho anterior fue revocado. El próximo despacho será una acción humana separada.',
-      dispatchAt: null,
-      reconciliationUnknown: false,
-      confirmRuntimeChecked: false,
-      reconcileNote: '',
-    });
-    // This changes only local UI state; it does not send a request.
-  };
 
   if (!authenticated) return null;
 
