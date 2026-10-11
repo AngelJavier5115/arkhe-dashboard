@@ -93,3 +93,17 @@ test('Tlacuilo delegation is one-shot at the database layer, not only in runner 
   assert.match(singleUseMigration, /tlacuilo-smoke-relation-5-6-duplicates-v1/);
   assert.doesNotMatch(singleUseMigration, /drop index|drop constraint/i);
 });
+
+
+test('Tlacuilo one-shot guard serializes inserts for a node pair and re-checks within the database transaction', () => {
+  const atomicGuard = fs.readFileSync(
+    new URL('../supabase/migrations/20261011050000_tlacuilo_atomic_pair_guard.sql', import.meta.url),
+    'utf8'
+  );
+  assert.match(atomicGuard, /create or replace function public\.arkhe_guard_tlacuilo_one_shot_pair/i);
+  assert.match(atomicGuard, /pg_advisory_xact_lock/);
+  assert.match(atomicGuard, /before insert on public\.arkhe_semantic_relations/i);
+  assert.match(atomicGuard, /tlacuilo-smoke-relation-5-6-duplicates-v1/);
+  assert.match(atomicGuard, /existing\.source_node_id = new\.source_node_id[\s\S]*?existing\.target_node_id = new\.target_node_id[\s\S]*?existing\.source_node_id = new\.target_node_id[\s\S]*?existing\.target_node_id = new\.source_node_id/);
+  assert.match(atomicGuard, /errcode = '23505'/);
+});
