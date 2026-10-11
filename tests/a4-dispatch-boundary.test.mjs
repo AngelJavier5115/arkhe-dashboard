@@ -11,7 +11,7 @@ import {
 const read = name => fs.readFileSync(new URL('../' + name, import.meta.url), 'utf8');
 const core = read('api/arkhe-core.js');
 const signing = read('api/core-dispatch-signing.js');
-const migration = read('supabase/migrations/20261011060000_signed_invocation_dispatch.sql');
+const migration = read('supabase/migrations/20261011053000_signed_invocation_dispatch.sql');
 
 test('Core outbound dispatch signature binds service audience, dispatch ID and exact serialized body', () => {
   const pair = generateKeyPairSync('ed25519');
@@ -80,6 +80,39 @@ test('Only recent human governance can issue a dispatch; the target is derived f
   assert.doesNotMatch(action, /body\.url|body\.target_url/);
 });
 
+test('Processing, completion and failure require the exact claimed dispatch ID', () => {
+  const getStart = core.indexOf('async function actionGetInvocation');
+  const getEnd = core.indexOf('function raiseMappedCompletionError', getStart);
+  const getAction = core.slice(getStart, getEnd);
+  assert.match(getAction, /requireUuidShape\(body\.dispatch_id, 'dispatch_id'\)/);
+  assert.match(getAction, /arkhe_validate_invocation_dispatch/);
+
+  const completeStart = core.indexOf('async function actionCompleteInvocation');
+  const completeEnd = core.indexOf('async function actionFailInvocation', completeStart);
+  const complete = core.slice(completeStart, completeEnd);
+  assert.match(complete, /requireUuidShape\(body\.dispatch_id, 'dispatch_id'\)/);
+  assert.match(complete, /p_dispatch_id: dispatchId/);
+  assert.match(complete, /dispatch_id: dispatchId/);
+
+  const failStart = core.indexOf('async function actionFailInvocation');
+  const failEnd = core.indexOf('async function actionOpenDebate', failStart);
+  const failure = core.slice(failStart, failEnd);
+  assert.match(failure, /arkhe_fail_invocation_atomically/);
+  assert.match(failure, /p_dispatch_id: dispatchId/);
+});
+
+test('Human reconciliation is recent-WebAuthn-only and explicitly requires an audit note', () => {
+  const start = core.indexOf('async function actionReconcileInvocationDispatch');
+  const end = core.indexOf('async function actionGetInvocation', start);
+  assert.ok(start >= 0 && end > start, 'reconciliation action bounds must exist');
+  const action = core.slice(start, end);
+  assert.match(core, /case 'reconciliar_despacho_convocatoria':[\s\S]*?actionReconcileInvocationDispatch\(supabase, body, humanIdentity\)/);
+  assert.match(action, /actorId !== ANGEL_ID/);
+  assert.match(action, /reconciliation_note/);
+  assert.match(action, /arkhe_reconcile_invocation_dispatch/);
+  assert.match(action, /requires_new_human_dispatch/);
+});
+
 test('Investigator claim is derived from signed service identity and calls the one-shot claim RPC', () => {
   const start = core.indexOf('async function actionClaimInvocationDispatch');
   const end = core.indexOf('async function actionDispatchInvocation', start);
@@ -109,4 +142,9 @@ test('Dispatch RPCs are one-use, audience-bound, time-limited, and not executabl
   assert.match(migration, /REVOKE ALL ON FUNCTION public\.arkhe_issue_invocation_dispatch[\s\S]*?FROM PUBLIC, anon, authenticated/);
   assert.match(migration, /REVOKE ALL ON FUNCTION public\.arkhe_claim_invocation_dispatch[\s\S]*?FROM PUBLIC, anon, authenticated/);
   assert.match(migration, /GRANT EXECUTE ON FUNCTION public\.arkhe_claim_invocation_dispatch[\s\S]*?TO service_role/);
+  assert.match(migration, /FUNCTION public\\.arkhe_validate_invocation_dispatch/);
+  assert.match(migration, /FUNCTION public\\.arkhe_fail_invocation_atomically/);
+  assert.match(migration, /FUNCTION public\\.arkhe_reconcile_invocation_dispatch/);
+  assert.match(migration, /claimed_at <= now\(\) - interval '5 minutes'/);
+
 });
