@@ -97,7 +97,7 @@ test('Tlacuilo delegation is one-shot at the database layer, not only in runner 
 
 test('Tlacuilo one-shot guard serializes inserts for a node pair and re-checks within the database transaction', () => {
   const atomicGuard = fs.readFileSync(
-    new URL('../supabase/migrations/20261011050000_tlacuilo_atomic_pair_guard.sql', import.meta.url),
+    new URL('../supabase/migrations/20261011051206_tlacuilo_atomic_pair_guard.sql', import.meta.url),
     'utf8'
   );
   assert.match(atomicGuard, /create or replace function public\.arkhe_guard_tlacuilo_one_shot_pair/i);
