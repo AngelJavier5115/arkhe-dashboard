@@ -2,6 +2,14 @@ import { createHash, createPrivateKey, randomUUID, sign } from 'node:crypto';
 
 const DISPATCH_TTL_MS = 90 * 1000;
 
+// Never let a Preview configuration point at the currently active Render
+// services. Staging endpoints must be separate services with their own config.
+const ACTIVE_RENDER_HOSTS = new Set([
+  'atlas-bot-8in0.onrender.com',
+  'aletheia-bot-u6r3.onrender.com',
+  'tekton-bot.onrender.com'
+]);
+
 export const CORE_DISPATCH_TARGETS = Object.freeze({
   atlas: {
     investigadorId: '6deb143d-17c4-4d1a-a2d2-1fd9ddf2853f',
@@ -51,6 +59,7 @@ export function resolveCoreDispatchTarget(serviceId, env = process.env) {
   if (
     url.protocol !== 'https:' ||
     !url.hostname.endsWith('.onrender.com') ||
+    ACTIVE_RENDER_HOSTS.has(url.hostname.toLowerCase()) ||
     url.username ||
     url.password ||
     url.pathname !== '/arkhe/invocation' ||
