@@ -5,10 +5,12 @@ on:
     branches:
       - audit/a4-human-auth
       - security/a4-idempotent-completion
+      - security/a4-core-dispatch
   pull_request:
     branches:
       - main
       - audit/a4-human-auth
+      - security/a4-idempotent-completion
   workflow_dispatch:
 
 permissions:
