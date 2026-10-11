@@ -63,6 +63,19 @@ VALUES
   (9,10,'{}'::jsonb);
 SQL
 
+# Once Tlacuilo successfully claims its one-shot pair, a later ordinary writer
+# must not add a second relation for the same unordered pair.
+if psql -v ON_ERROR_STOP=1 -c "INSERT INTO public.arkhe_semantic_relations (source_node_id,target_node_id,provenance) VALUES (6,5,'{\\"delegation\\":{\\"policy_id\\":\\"unrelated-later-policy\\"}}'::jsonb);" >"$LOG_FILE" 2>&1; then
+  cat "$LOG_FILE"
+  echo "FAIL: a later ordinary relation was allowed to duplicate Tlacuilo's occupied pair." >&2
+  exit 1
+fi
+if ! grep -q "Tlacuilo one-shot pair guard" "$LOG_FILE"; then
+  cat "$LOG_FILE"
+  echo "FAIL: later pair conflict was rejected for an unexpected reason." >&2
+  exit 1
+fi
+
 # Reuse of the same pair/policy is rejected by the trigger.
 if psql -v ON_ERROR_STOP=1 -c "INSERT INTO public.arkhe_semantic_relations (source_node_id,target_node_id,provenance) VALUES (5,6,'{\"delegation\":{\"policy_id\":\"tlacuilo-smoke-relation-5-6-duplicates-v1\"}}'::jsonb);" >"$LOG_FILE" 2>&1; then
   cat "$LOG_FILE"
@@ -136,9 +149,50 @@ if ! grep -q "Tlacuilo one-shot pair guard" "$RACE_LOG"; then
   exit 1
 fi
 
+# Reverse race: Tlacuilo wins the pair lock first; an unrelated insert waiting
+# behind it must be rejected after Tlacuilo commits.
+psql -v ON_ERROR_STOP=1 -c "TRUNCATE public.arkhe_semantic_relations RESTART IDENTITY;"
+rm -f "$LOCK_READY"
+psql -v ON_ERROR_STOP=1 >"$FIRST_LOG" 2>&1 <<'SQL' &
+BEGIN;
+INSERT INTO public.arkhe_semantic_relations (source_node_id,target_node_id,provenance)
+VALUES (5,6,'{"delegation":{"policy_id":"tlacuilo-smoke-relation-5-6-duplicates-v1"}}'::jsonb);
+\! touch "$LOCK_READY"
+SELECT pg_sleep(2);
+COMMIT;
+SQL
+FIRST_PID=$!
+LOCK_HELD=""
+for _ in $(seq 1 50); do
+  if [[ -f "$LOCK_READY" ]]; then
+    LOCK_HELD=1
+    break
+  fi
+  sleep 0.1
+done
+if [[ -z "$LOCK_HELD" ]]; then
+  kill "$FIRST_PID" 2>/dev/null || true
+  wait "$FIRST_PID" 2>/dev/null || true
+  cat "$FIRST_LOG"
+  echo "FAIL: Tlacuilo transaction did not signal that its pair lock was held." >&2
+  exit 1
+fi
+if psql -v ON_ERROR_STOP=1 -c "INSERT INTO public.arkhe_semantic_relations (source_node_id,target_node_id,provenance) VALUES (6,5,'{\\"delegation\\":{\\"policy_id\\":\\"concurrent-later-policy\\"}}'::jsonb);" >"$RACE_LOG" 2>&1; then
+  wait "$FIRST_PID"
+  cat "$RACE_LOG"
+  echo "FAIL: an ordinary insert duplicated the pair after Tlacuilo won the race." >&2
+  exit 1
+fi
+wait "$FIRST_PID"
+if ! grep -q "Tlacuilo one-shot pair guard" "$RACE_LOG"; then
+  cat "$RACE_LOG"
+  echo "FAIL: the reverse concurrent insert was rejected for an unexpected reason." >&2
+  exit 1
+fi
+
 FINAL_ROWS="$(psql -v ON_ERROR_STOP=1 -tA -c "SELECT count(*) FROM public.arkhe_semantic_relations;")"
 FINAL_POLICY_ROWS="$(psql -v ON_ERROR_STOP=1 -tA -c "SELECT count(*) FROM public.arkhe_semantic_relations WHERE provenance #>> '{delegation,policy_id}' = 'tlacuilo-smoke-relation-5-6-duplicates-v1';")"
 test "$FINAL_ROWS" = "1"
-test "$FINAL_POLICY_ROWS" = "0"
+test "$FINAL_POLICY_ROWS" = "1"
 
-echo "PASS: pair guard rejects pre-existing and concurrent relations; first one-shot proposal succeeds; the partial unique index independently rejects a duplicate; unrelated pairs remain allowed."
+echo "PASS: pair guard rejects pre-existing, prior-Tlacuilo and concurrent relations in both commit orders; first one-shot proposal succeeds; partial unique index independently rejects a duplicate; unrelated pairs remain allowed."
