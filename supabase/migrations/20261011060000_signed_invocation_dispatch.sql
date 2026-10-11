@@ -25,7 +25,7 @@ CREATE INDEX IF NOT EXISTS core_invocation_dispatches_expiry_idx
 
 ALTER TABLE public.core_invocation_dispatches ENABLE ROW LEVEL SECURITY;
 
-REVOKE ALL ON TABLE public.core_invocation_dispatches FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON TABLE public.core_invocation_dispatches FROM PUBLIC, anon, authenticated, service_role;
 
 CREATE OR REPLACE FUNCTION public.arkhe_issue_invocation_dispatch(
   p_dispatch_id uuid,
