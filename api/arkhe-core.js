@@ -870,7 +870,7 @@ export default async function handler(req, res) {
 
           if (body.discord_channel_id != null && body.discord_channel_id !== '') {
             if (typeof body.discord_channel_id !== 'string' ||
-                !/^\\d{17,20}$/.test(body.discord_channel_id)) {
+                !/^[0-9]{17,20}$/.test(body.discord_channel_id)) {
               const invalid = new Error('discord_channel_id debe ser un ID de canal de Discord válido.');
               invalid.status = 400;
               throw invalid;
