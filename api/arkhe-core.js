@@ -599,7 +599,7 @@ async function actionCompleteInvocation(supabase, body, serviceIdentity) {
 
 async function actionFailInvocation(supabase, body, serviceIdentity) {
   const investigadorId = requireBoundInvestigator(serviceIdentity);
-  const convocatoriaId = uuid(body.convocatoria_id, 'convocatoria_id');
+  const convocatoriaId = requireUuidShape(body.convocatoria_id, 'convocatoria_id');
 
   if (body.investigador_id && body.investigador_id !== investigadorId) {
     const forbidden = new Error('El investigador declarado no coincide con la identidad del servicio.');
@@ -607,37 +607,58 @@ async function actionFailInvocation(supabase, body, serviceIdentity) {
     throw forbidden;
   }
 
-  const { data: convocatoria, error: convocatoriaError } = await supabase
-    .from('convocatorias_ronda')
-    .select('*')
-    .eq('id', convocatoriaId)
-    .single();
-
-  if (convocatoriaError) throw convocatoriaError;
-  if (!convocatoria) throw new Error('Convocatoria no encontrada.');
-  if (convocatoria.investigador_id !== investigadorId) {
-    const forbidden = new Error('El investigador no coincide con la identidad del servicio.');
-    forbidden.status = 403;
-    throw forbidden;
-  }
-
-  if (!['enviada', 'pendiente'].includes(convocatoria.estado)) {
-    return { convocatoria };
-  }
-
-  const { data, error } = await supabase
+  // Compare-and-set: only a pending invocation can transition to error.
+  // This UPDATE is atomic at row level and serializes with the completion RPC's
+  // SELECT ... FOR UPDATE on the same convocatoria row.
+  const { data: updated, error: updateError } = await supabase
     .from('convocatorias_ronda')
     .update({
       estado: 'error',
       completed_at: new Date().toISOString()
     })
     .eq('id', convocatoriaId)
+    .eq('investigador_id', investigadorId)
+    .in('estado', ['enviada', 'pendiente'])
     .select('*')
-    .single();
+    .maybeSingle();
 
-  if (error) throw error;
+  if (updateError) throw updateError;
+  if (updated) {
+    return { convocatoria: updated, idempotent_replay: false };
+  }
 
-  return { convocatoria: data };
+  // No row was transitioned. Read the current state to distinguish an exact
+  // repeated failure from a completed/foreign/missing invocation. Never
+  // overwrite "completada" with "error" after a race.
+  const { data: current, error: readError } = await supabase
+    .from('convocatorias_ronda')
+    .select('*')
+    .eq('id', convocatoriaId)
+    .maybeSingle();
+
+  if (readError) throw readError;
+  if (!current) {
+    const missing = new Error('Convocatoria no encontrada.');
+    missing.status = 404;
+    throw missing;
+  }
+  if (current.investigador_id !== investigadorId) {
+    const forbidden = new Error('La convocatoria no pertenece al investigador autenticado.');
+    forbidden.status = 403;
+    throw forbidden;
+  }
+  if (current.estado === 'error') {
+    return { convocatoria: current, idempotent_replay: true };
+  }
+  if (current.estado === 'completada') {
+    const conflict = new Error('La convocatoria ya está completada y no puede cambiarse a error.');
+    conflict.status = 409;
+    throw conflict;
+  }
+
+  const conflict = new Error('La convocatoria cambió de estado y no pudo marcarse como error; reconcilia antes de repetir.');
+  conflict.status = 409;
+  throw conflict;
 }
 
 async function actionOpenDebate(supabase, body, actorId) {
