@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import { authenticateServiceRequest, expectedInvestigatorForService, MAX_CLOCK_SKEW_MS } from './service-auth.js';
 import { getAuthSupabase, getWebAuthnConfig, requireSameOrigin } from './human-auth-config.js';
 import { getHumanSession, isRecentReauthentication } from './human-session.js';
+import { assertCoreDispatchConfigured, dispatchInvocation } from './core-dispatch.js';
 
 const ANGEL_ID = '2a003935-f248-442c-96fc-dcee29c4d41a';
 const INVESTIGATOR_IDS = {
@@ -31,7 +32,8 @@ const allowedInvocationTypes = new Set([
 const SERVICE_INVESTIGATOR_ACTIONS = new Set([
   'obtener_convocatoria',
   'completar_convocatoria',
-  'fallar_convocatoria'
+  'fallar_convocatoria',
+  'claim_convocation_dispatch'
 ]);
 
 function json(res, status, body) {
@@ -375,6 +377,64 @@ async function actionCreateInvocations(supabase, body, actorId) {
     foco_intervencion: context.foco_intervencion,
     intervenciones: context.intervenciones,
     convocatorias: data ?? []
+  };
+}
+
+async function actionClaimConvocationDispatch(supabase, body, serviceIdentity) {
+  const investigatorId = requireBoundInvestigator(serviceIdentity);
+  const convocatoriaId = requireUuidShape(body.convocatoria_id, 'convocatoria_id');
+  const dispatchId = requireUuidShape(body.dispatch_id, 'dispatch_id');
+
+  const { data: convocatoria, error: readError } = await supabase
+    .from('convocatorias_ronda')
+    .select('id, investigador_id, estado')
+    .eq('id', convocatoriaId)
+    .maybeSingle();
+
+  if (readError) throw readError;
+  if (!convocatoria) {
+    const missing = new Error('Convocatoria no encontrada.');
+    missing.status = 404;
+    throw missing;
+  }
+  if (convocatoria.investigador_id !== investigatorId) {
+    const forbidden = new Error('La convocatoria no pertenece al investigador autenticado.');
+    forbidden.status = 403;
+    throw forbidden;
+  }
+  if (!['enviada', 'pendiente'].includes(convocatoria.estado)) {
+    const conflict = new Error('La convocatoria ya no acepta un nuevo despacho; no reintentes automáticamente.');
+    conflict.status = 409;
+    throw conflict;
+  }
+
+  const { error: claimError } = await supabase
+    .from('core_dispatch_claims')
+    .insert({
+      dispatch_id: dispatchId,
+      convocatoria_id: convocatoriaId,
+      service_id: serviceIdentity.serviceId
+    });
+
+  if (claimError) {
+    if (claimError.code === '23505') {
+      const replay = new Error('El despacho firmado ya fue reclamado; se ha detenido la repetición.');
+      replay.status = 409;
+      throw replay;
+    }
+    if (claimError.code === '42P01') {
+      const unavailable = new Error('El registro de despachos todavía no está disponible en esta instalación del Core.');
+      unavailable.status = 503;
+      throw unavailable;
+    }
+    throw claimError;
+  }
+
+  return {
+    accepted: true,
+    dispatch_id: dispatchId,
+    convocatoria_id: convocatoriaId,
+    service_id: serviceIdentity.serviceId
   };
 }
 
@@ -782,11 +842,88 @@ export default async function handler(req, res) {
       case 'iniciar_ronda':
         result = await actionStartRound(supabase, body, humanIdentity);
         break;
-      case 'convocar_investigadores':
+      case 'convocar_investigadores': {
+        const requestedDispatch = body.despachar === true;
+        if (body.despachar !== undefined && typeof body.despachar !== 'boolean') {
+          const invalid = new Error('despachar debe ser un booleano.');
+          invalid.status = 400;
+          throw invalid;
+        }
+
+        let dispatchServiceIds = [];
+        if (requestedDispatch) {
+          const participantIds = ids(body.investigadores);
+          const servicesByInvestigator = {
+            [INVESTIGATOR_IDS.atlas]: 'atlas',
+            [INVESTIGATOR_IDS.aletheia]: 'aletheia',
+            [INVESTIGATOR_IDS.tekton]: 'tekton'
+          };
+          dispatchServiceIds = participantIds.map(id => {
+            const serviceId = servicesByInvestigator[id];
+            if (!serviceId) {
+              const invalid = new Error('Sólo se pueden despachar investigadores con identidad de servicio registrada.');
+              invalid.status = 400;
+              throw invalid;
+            }
+            return serviceId;
+          });
+
+          if (body.discord_channel_id != null && body.discord_channel_id !== '') {
+            if (typeof body.discord_channel_id !== 'string' ||
+                !/^\\d{17,20}$/.test(body.discord_channel_id)) {
+              const invalid = new Error('discord_channel_id debe ser un ID de canal de Discord válido.');
+              invalid.status = 400;
+              throw invalid;
+            }
+          }
+          // Validate every target and the dedicated Core dispatch key before
+          // creating any invocation. Do not leave rows behind for bad config.
+          assertCoreDispatchConfigured(dispatchServiceIds);
+        }
+
         result = await actionCreateInvocations(supabase, body, humanIdentity);
+        if (requestedDispatch) {
+          const dispatchResults = await Promise.all(result.convocatorias.map(async convocatoria => {
+            const serviceId = {
+              [INVESTIGATOR_IDS.atlas]: 'atlas',
+              [INVESTIGATOR_IDS.aletheia]: 'aletheia',
+              [INVESTIGATOR_IDS.tekton]: 'tekton'
+            }[convocatoria.investigador_id];
+
+            try {
+              return await dispatchInvocation({
+                serviceId,
+                convocatoriaId: convocatoria.id,
+                discordChannelId: body.discord_channel_id || null
+              });
+            } catch (error) {
+              return {
+                accepted: false,
+                service_id: serviceId,
+                convocatoria_id: convocatoria.id,
+                error: error?.message || 'El despacho no fue confirmado.',
+                code: error?.code || null,
+                automatic_retry: false
+              };
+            }
+          }));
+          result = {
+            ...result,
+            dispatch: dispatchResults,
+            dispatch_summary: {
+              accepted: dispatchResults.filter(item => item.accepted).length,
+              failed_or_ambiguous: dispatchResults.filter(item => !item.accepted).length,
+              automatic_retry: false
+            }
+          };
+        }
         break;
+      }
       case 'obtener_convocatoria':
         result = await actionGetInvocation(supabase, body, serviceIdentity);
+        break;
+      case 'claim_convocation_dispatch':
+        result = await actionClaimConvocationDispatch(supabase, body, serviceIdentity);
         break;
       case 'completar_convocatoria':
         result = await actionCompleteInvocation(supabase, body, serviceIdentity);
