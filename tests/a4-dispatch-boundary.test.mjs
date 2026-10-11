@@ -105,6 +105,7 @@ test('Dispatch RPCs are one-use, audience-bound, time-limited, and not executabl
   const humanLock = migration.indexOf('FROM public.convocatorias_ronda', migration.indexOf('FUNCTION public.arkhe_claim_invocation_dispatch'));
   const dispatchLock = migration.indexOf('FROM public.core_invocation_dispatches', migration.indexOf('FUNCTION public.arkhe_claim_invocation_dispatch'));
   assert.ok(humanLock >= 0 && dispatchLock > humanLock, 'claim must lock invocation before dispatch row to maintain consistent lock order');
+  assert.match(migration, /REVOKE ALL ON TABLE public\.core_invocation_dispatches FROM PUBLIC, anon, authenticated, service_role/);
   assert.match(migration, /REVOKE ALL ON FUNCTION public\.arkhe_issue_invocation_dispatch[\s\S]*?FROM PUBLIC, anon, authenticated/);
   assert.match(migration, /REVOKE ALL ON FUNCTION public\.arkhe_claim_invocation_dispatch[\s\S]*?FROM PUBLIC, anon, authenticated/);
   assert.match(migration, /GRANT EXECUTE ON FUNCTION public\.arkhe_claim_invocation_dispatch[\s\S]*?TO service_role/);
