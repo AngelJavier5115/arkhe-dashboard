@@ -102,7 +102,7 @@ psql -v ON_ERROR_STOP=1 -c "TRUNCATE public.arkhe_semantic_relations RESTART IDE
 psql -v ON_ERROR_STOP=1 >"$FIRST_LOG" 2>&1 <<'SQL' &
 BEGIN;
 INSERT INTO public.arkhe_semantic_relations (source_node_id,target_node_id,provenance)
-VALUES (5,6,'{"delegation":{"policy_id":"concurrent-unrelated-policy"}}'::jsonb);
+VALUES (6,5,'{"delegation":{"policy_id":"concurrent-unrelated-policy"}}'::jsonb);
 \! touch "$LOCK_READY"
 SELECT pg_sleep(2);
 COMMIT;
