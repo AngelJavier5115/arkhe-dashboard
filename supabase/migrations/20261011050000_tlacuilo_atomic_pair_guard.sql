@@ -27,11 +27,13 @@ begin
     select 1
     from public.arkhe_semantic_relations existing
     where (
-      existing.source_node_id = new.source_node_id
-      and existing.target_node_id = new.target_node_id
-    ) or (
-      existing.source_node_id = new.target_node_id
-      and existing.target_node_id = new.source_node_id
+      (
+        existing.source_node_id = new.source_node_id
+        and existing.target_node_id = new.target_node_id
+      ) or (
+        existing.source_node_id = new.target_node_id
+        and existing.target_node_id = new.source_node_id
+      )
     )
     and (
       new.provenance #>> '{delegation,policy_id}' =
