@@ -1,4 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
+import { authenticateServiceRequest, expectedInvestigatorForService, MAX_CLOCK_SKEW_MS } from './service-auth.js';
+import { getAuthSupabase, getWebAuthnConfig, requireSameOrigin } from './human-auth-config.js';
+import { getHumanSession, isRecentReauthentication } from './human-session.js';
 
 const ANGEL_ID = '2a003935-f248-442c-96fc-dcee29c4d41a';
 const INVESTIGATOR_IDS = {
@@ -24,6 +27,12 @@ const allowedInvocationTypes = new Set([
   'aclaracion'
 ]);
 
+const SERVICE_INVESTIGATOR_ACTIONS = new Set([
+  'obtener_convocatoria',
+  'completar_convocatoria',
+  'fallar_convocatoria'
+]);
+
 function json(res, status, body) {
   res.status(status).json(body);
 }
@@ -46,9 +55,29 @@ function requireCoreToken(req) {
   }
 }
 
-function requireAngel(actorId) {
-  if (actorId !== ANGEL_ID) {
-    const error = new Error('Solo Ángel puede gobernar una ronda.');
+async function requireHumanGovernor(req, { requireRecentReauth = false } = {}) {
+  requireSameOrigin(req);
+
+  const authSupabase = getAuthSupabase();
+  const session = await getHumanSession(req, authSupabase);
+  if (!session) {
+    const error = new Error('Se requiere una sesión humana autenticada.');
+    error.status = 401;
+    throw error;
+  }
+
+  if (requireRecentReauth && !isRecentReauthentication(session)) {
+    const error = new Error('Se requiere una reautenticación WebAuthn reciente.');
+    error.status = 401;
+    throw error;
+  }
+
+  return session.investigatorId;
+}
+
+function assertBodyActorMatches(body, actorId) {
+  if (body.actor_id && body.actor_id !== actorId) {
+    const error = new Error('actor_id no coincide con la identidad humana autenticada.');
     error.status = 403;
     throw error;
   }
@@ -79,6 +108,59 @@ async function readBody(req) {
     });
     req.on('error', reject);
   });
+}
+
+async function authenticateInvestigatorRequest(req, body, supabase) {
+  req.__arkheSignedBody = body;
+
+  const identity = authenticateServiceRequest(req);
+  const expectedInvestigatorId = expectedInvestigatorForService(identity.serviceId);
+
+  if (!identity.verified || !expectedInvestigatorId) {
+    const error = new Error('Firma de servicio inválida.');
+    error.status = 401;
+    throw error;
+  }
+
+  if (identity.investigadorId !== expectedInvestigatorId) {
+    const error = new Error('La identidad del servicio no está vinculada al investigador esperado.');
+    error.status = 403;
+    throw error;
+  }
+
+  const expiresAt = new Date(
+    Number(identity.timestamp) + MAX_CLOCK_SKEW_MS
+  ).toISOString();
+
+  const { error } = await supabase
+    .from('core_request_nonces')
+    .insert({
+      nonce: identity.nonce,
+      service_id: identity.serviceId,
+      request_timestamp: identity.timestamp,
+      expires_at: expiresAt
+    });
+
+  if (error) {
+    if (error.code === '23505') {
+      const replay = new Error('Nonce ya utilizado.');
+      replay.status = 401;
+      throw replay;
+    }
+    throw error;
+  }
+
+  return identity;
+}
+
+function requireBoundInvestigator(serviceIdentity) {
+  if (!serviceIdentity?.investigadorId) {
+    const error = new Error('Identidad de servicio requerida.');
+    error.status = 401;
+    throw error;
+  }
+
+  return serviceIdentity.investigadorId;
 }
 
 async function assertParticipants(supabase, investigacionId, participantIds) {
@@ -150,8 +232,7 @@ async function loadRoundContext(supabase, rondaId) {
   };
 }
 
-async function actionStartRound(supabase, body) {
-  requireAngel(body.actor_id);
+async function actionStartRound(supabase, body, actorId) {
 
   const participantIds = ids(body.participantes);
 
@@ -211,7 +292,7 @@ async function actionStartRound(supabase, body) {
     ...(body.contexto ?? {}),
     ...(nodoContexto ? { nodo: nodoContexto } : {}),
     gobernanza: {
-      controlador: ANGEL_ID,
+      controlador: actorId,
       participantes_iniciales: participantIds
     }
   };
@@ -224,7 +305,7 @@ async function actionStartRound(supabase, body) {
       tipo: body.tipo ?? 'consulta',
       estado: 'abierta',
       pregunta: body.pregunta ?? investigacion.pregunta ?? '',
-      iniciada_por: ANGEL_ID,
+      iniciada_por: actorId,
       destinatario_id: participantIds.length === 1 ? participantIds[0] : null,
       ronda_padre_id: body.ronda_padre_id ?? null,
       fase_id: body.fase_id ?? null,
@@ -239,8 +320,7 @@ async function actionStartRound(supabase, body) {
   return { ronda, investigacion, participantes: participantIds };
 }
 
-async function actionCreateInvocations(supabase, body) {
-  requireAngel(body.actor_id);
+async function actionCreateInvocations(supabase, body, actorId) {
 
   const rondaId = uuid(body.ronda_id, 'ronda_id');
   const participantIds = ids(body.investigadores);
@@ -259,7 +339,7 @@ async function actionCreateInvocations(supabase, body) {
 
   const invocations = participantIds.map(investigadorId => ({
     ronda_id: rondaId,
-    convocada_por: ANGEL_ID,
+    convocada_por: actorId,
     investigador_id: investigadorId,
     tipo_convocatoria: tipo,
     foco_intervencion_id: body.foco_intervencion_id ?? context.ronda.foco_intervencion_id ?? null,
@@ -284,7 +364,8 @@ async function actionCreateInvocations(supabase, body) {
   };
 }
 
-async function actionGetInvocation(supabase, body) {
+async function actionGetInvocation(supabase, body, serviceIdentity) {
+  const investigadorId = requireBoundInvestigator(serviceIdentity);
   const convocatoriaId = uuid(body.convocatoria_id, 'convocatoria_id');
 
   const { data: convocatoria, error } = await supabase
@@ -295,6 +376,11 @@ async function actionGetInvocation(supabase, body) {
 
   if (error) throw error;
   if (!convocatoria) throw new Error('Convocatoria no encontrada.');
+  if (convocatoria.investigador_id !== investigadorId) {
+    const forbidden = new Error('La convocatoria no pertenece al investigador autenticado.');
+    forbidden.status = 403;
+    throw forbidden;
+  }
   if (convocatoria.estado !== 'enviada' && convocatoria.estado !== 'pendiente') {
     throw new Error('La convocatoria ya no está disponible para ejecución.');
   }
@@ -332,10 +418,16 @@ async function actionGetInvocation(supabase, body) {
   };
 }
 
-async function actionCompleteInvocation(supabase, body) {
-  const investigadorId = uuid(body.investigador_id, 'investigador_id');
+async function actionCompleteInvocation(supabase, body, serviceIdentity) {
+  const investigadorId = requireBoundInvestigator(serviceIdentity);
   const rondaId = uuid(body.ronda_id, 'ronda_id');
   const convocatoriaId = uuid(body.convocatoria_id, 'convocatoria_id');
+
+  if (body.investigador_id && body.investigador_id !== investigadorId) {
+    const forbidden = new Error('El investigador declarado no coincide con la identidad del servicio.');
+    forbidden.status = 403;
+    throw forbidden;
+  }
 
   const { data: convocatoria, error: convocatoriaError } = await supabase
     .from('convocatorias_ronda')
@@ -352,12 +444,33 @@ async function actionCompleteInvocation(supabase, body) {
     throw new Error('La convocatoria ya fue completada o cancelada.');
   }
 
+  const incomingMetadata = body.metadata ?? {};
+  const provenanceLevel = incomingMetadata.nivel_procedencia ?? null;
+
+  if (provenanceLevel === 'provider-response-attested') {
+    const observedModel = typeof incomingMetadata.modelo_observado === 'string'
+      ? incomingMetadata.modelo_observado.trim()
+      : '';
+    const providerResponseId = typeof incomingMetadata.id_respuesta_proveedor === 'string'
+      ? incomingMetadata.id_respuesta_proveedor.trim()
+      : '';
+
+    if (!observedModel || !providerResponseId || body.modelo !== observedModel || !body.proveedor) {
+      const provenanceError = new Error(
+        'La evidencia provider-response-attested es inconsistente o está incompleta.'
+      );
+      provenanceError.status = 400;
+      throw provenanceError;
+    }
+  }
+
   const metadata = {
-    ...(body.metadata ?? {}),
+    ...incomingMetadata,
     convocatoria_id: convocatoriaId,
     identidad_version: body.identidad_version ?? null,
     modelo: body.modelo ?? null,
-    proveedor: body.proveedor ?? null
+    proveedor: body.proveedor ?? null,
+    servicio_autenticado: serviceIdentity.serviceId
   };
 
   const { data: intervencion, error: intervencionError } = await supabase.rpc(
@@ -392,9 +505,16 @@ async function actionCompleteInvocation(supabase, body) {
 }
 
 
-async function actionFailInvocation(supabase, body) {
+
+async function actionFailInvocation(supabase, body, serviceIdentity) {
+  const investigadorId = requireBoundInvestigator(serviceIdentity);
   const convocatoriaId = uuid(body.convocatoria_id, 'convocatoria_id');
-  const investigadorId = uuid(body.investigador_id, 'investigador_id');
+
+  if (body.investigador_id && body.investigador_id !== investigadorId) {
+    const forbidden = new Error('El investigador declarado no coincide con la identidad del servicio.');
+    forbidden.status = 403;
+    throw forbidden;
+  }
 
   const { data: convocatoria, error: convocatoriaError } = await supabase
     .from('convocatorias_ronda')
@@ -404,9 +524,10 @@ async function actionFailInvocation(supabase, body) {
 
   if (convocatoriaError) throw convocatoriaError;
   if (!convocatoria) throw new Error('Convocatoria no encontrada.');
-
   if (convocatoria.investigador_id !== investigadorId) {
-    throw new Error('El investigador no coincide con la convocatoria.');
+    const forbidden = new Error('El investigador no coincide con la identidad del servicio.');
+    forbidden.status = 403;
+    throw forbidden;
   }
 
   if (!['enviada', 'pendiente'].includes(convocatoria.estado)) {
@@ -428,8 +549,7 @@ async function actionFailInvocation(supabase, body) {
   return { convocatoria: data };
 }
 
-async function actionOpenDebate(supabase, body) {
-  requireAngel(body.actor_id);
+async function actionOpenDebate(supabase, body, actorId) {
 
   const focusId = uuid(body.foco_intervencion_id, 'foco_intervencion_id');
   const participants = ids(body.investigadores);
@@ -464,7 +584,6 @@ async function actionOpenDebate(supabase, body) {
   }
 
   const created = await actionStartRound(supabase, {
-    actor_id: ANGEL_ID,
     investigacion_id: parentContext.ronda.investigacion_id,
     tipo: 'debate',
     pregunta: body.pregunta ?? body.instruccion_humana ?? parentContext.ronda.pregunta,
@@ -476,16 +595,15 @@ async function actionOpenDebate(supabase, body) {
       foco_intervencion_id: focusId,
       ronda_padre_id: parentRoundId
     }
-  });
+  }, actorId);
 
   const convocated = await actionCreateInvocations(supabase, {
-    actor_id: ANGEL_ID,
     ronda_id: created.ronda.id,
     investigadores: participants,
     tipo_convocatoria: 'debate',
     foco_intervencion_id: focusId,
     instruccion_humana: body.instruccion_humana ?? null
-  });
+  }, actorId);
 
   return {
     ...created,
@@ -494,8 +612,7 @@ async function actionOpenDebate(supabase, body) {
   };
 }
 
-async function actionRoundState(supabase, body, state) {
-  requireAngel(body.actor_id);
+async function actionRoundState(supabase, body, state, actorId) {
 
   const roundId = uuid(body.ronda_id, 'ronda_id');
   const patch = { estado: state };
@@ -522,13 +639,12 @@ async function actionRoundState(supabase, body, state) {
 
 export default async function handler(req, res) {
   try {
-    requireCoreToken(req);
-
     if (req.method === 'GET') {
+      requireCoreToken(req);
       return json(res, 200, {
         ok: true,
         core: 'arkhe-rounds',
-        version: '0.2',
+        version: '0.3',
         status: 'active'
       });
     }
@@ -539,35 +655,44 @@ export default async function handler(req, res) {
 
     const body = await readBody(req);
     const supabase = getSupabase();
+    const serviceIdentity = SERVICE_INVESTIGATOR_ACTIONS.has(body.action)
+      ? await authenticateInvestigatorRequest(req, body, supabase)
+      : null;
+
+    let humanIdentity = null;
+    if (!serviceIdentity) {
+      humanIdentity = await requireHumanGovernor(req, { requireRecentReauth: true });
+      assertBodyActorMatches(body, humanIdentity);
+    }
 
     let result;
     switch (body.action) {
       case 'iniciar_ronda':
-        result = await actionStartRound(supabase, body);
+        result = await actionStartRound(supabase, body, humanIdentity);
         break;
       case 'convocar_investigadores':
-        result = await actionCreateInvocations(supabase, body);
+        result = await actionCreateInvocations(supabase, body, humanIdentity);
         break;
       case 'obtener_convocatoria':
-        result = await actionGetInvocation(supabase, body);
+        result = await actionGetInvocation(supabase, body, serviceIdentity);
         break;
       case 'completar_convocatoria':
-        result = await actionCompleteInvocation(supabase, body);
+        result = await actionCompleteInvocation(supabase, body, serviceIdentity);
         break;
       case 'fallar_convocatoria':
-        result = await actionFailInvocation(supabase, body);
+        result = await actionFailInvocation(supabase, body, serviceIdentity);
         break;
       case 'abrir_debate':
-        result = await actionOpenDebate(supabase, body);
+        result = await actionOpenDebate(supabase, body, humanIdentity);
         break;
       case 'pausar_ronda':
-        result = await actionRoundState(supabase, body, 'pausada');
+        result = await actionRoundState(supabase, body, 'pausada', humanIdentity);
         break;
       case 'cerrar_ronda':
-        result = await actionRoundState(supabase, body, 'cerrada');
+        result = await actionRoundState(supabase, body, 'cerrada', humanIdentity);
         break;
       case 'cancelar_ronda':
-        result = await actionRoundState(supabase, body, 'cancelada');
+        result = await actionRoundState(supabase, body, 'cancelada', humanIdentity);
         break;
       default:
         throw new Error('Acción Core desconocida.');
@@ -582,3 +707,6 @@ export default async function handler(req, res) {
     });
   }
 }
+
+
+export { actionCompleteInvocation };
