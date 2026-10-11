@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'none'; img-src 'none'; object-src 'none'; frame-src 'none'; form-action 'none'; base-uri 'none'">
+<title>Arkhé A.4 — Generador local Ed25519</title>
+<style>
+:root{color-scheme:dark;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#080d1b;color:#e6ebf6}
+*{box-sizing:border-box}body{margin:0;padding:20px;max-width:760px;margin-inline:auto}
+header{padding:12px 0 20px}h1{font-size:1.55rem;margin:.2rem 0 .6rem}h2{font-size:1.1rem;margin:0 0 12px}p{line-height:1.5;color:#b5c0d4}.warning{border:1px solid #9e6a29;background:#23180e;border-radius:14px;padding:14px;margin:14px 0;color:#ffdda6}
+button{border:1px solid #6a70ff;background:#5145ee;color:white;border-radius:10px;padding:12px 14px;font-size:1rem;font-weight:650;cursor:pointer}
+button.secondary{background:#121b30;border-color:#34435e;color:#e6ebf6}button:disabled{opacity:.55;cursor:wait}
+.card{border:1px solid #26344b;background:#0e1729;border-radius:16px;padding:16px;margin:14px 0}
+label{display:block;font-weight:650;margin:12px 0 6px}.field{display:flex;gap:8px;align-items:stretch}.field input{min-width:0;flex:1;background:#070d19;border:1px solid #34435e;border-radius:9px;color:#e6ebf6;padding:10px;font-size:.78rem}
+.small{font-size:.86rem;color:#aab6ca}.status{white-space:pre-wrap;overflow-wrap:anywhere;color:#aee5d1}.footer{font-size:.82rem;color:#8e9bb2;margin:20px 0}#keys[hidden]{display:none}.inline{display:flex;gap:8px;flex-wrap:wrap}
+</style>
+</head>
+<body>
+<header>
+  <p class="small">ARKHÉ CORE · A.4 · HERRAMIENTA LOCAL DE PREVIEW</p>
+  <h1>Generador de claves de servicio Ed25519</h1>
+  <p>Genera tres pares distintos, uno para Atlas, otro para Aletheia y otro para Tekton. La generación ocurre en este navegador.</p>
+</header>
+<div class="warning"><strong>Reglas de seguridad</strong><br>
+Esta página no realiza peticiones de red ni guarda claves. No compartas las claves privadas, no las pegues en el chat ni las guardes en GitHub. Copia cada clave privada directamente al campo secreto <code>ARKHE_SERVICE_PRIVATE_KEY</code> del servicio Render correspondiente. Solo las claves públicas pueden compartirse para configurar Vercel. Mantén esta página abierta hasta terminar y luego ciérrala.</div>
+<div class="inline">
+  <button id="generate" onclick="generateKeys()">Generar tres pares nuevos</button>
+  <button class="secondary" onclick="clearKeys()">Borrar de la pantalla</button>
+</div>
+<p id="status" class="status" role="status">Listo. Todavía no se ha generado ninguna clave.</p>
+<div id="keys" hidden></div>
+<p class="footer">La página usa Web Crypto Ed25519 y exporta PEM en formato de una línea con separadores \n, compatible con el normalizador de claves de Arkhé. Si el navegador no admite Ed25519, se mostrará un error y no se generará nada.</p>
+<script>
+const serviceNames = [
+  {id:'atlas', title:'Atlas', keyName:'ARKHE_ATLAS_PUBLIC_KEY'},
+  {id:'aletheia', title:'Aletheia', keyName:'ARKHE_ALETHEIA_PUBLIC_KEY'},
+  {id:'tekton', title:'Tekton', keyName:'ARKHE_TEKTON_PUBLIC_KEY'}
+];
+
+function bytesToBase64(buffer) {
+  const bytes = new Uint8Array(buffer);
+  let binary = '';
+  for (let i=0;i<bytes.length;i++) binary += String.fromCharCode(bytes[i]);
+  return btoa(binary);
+}
+function pemOneLine(label, buffer) {
+  const base64 = bytesToBase64(buffer);
+  const lines = base64.match(/.{1,64}/g) || [];
+  return '-----BEGIN ' + label + '-----\\n' + lines.join('') + '\\n-----END ' + label + '-----\\n';
+}
+function makeField(parent, labelText, value, isPrivate, publicKeyName) {
+  const label = document.createElement('label');
+  label.textContent = labelText;
+  parent.appendChild(label);
+  const row = document.createElement('div');
+  row.className = 'field';
+  const input = document.createElement('input');
+  input.readOnly = true;
+  input.value = value;
+  input.type = isPrivate ? 'password' : 'text';
+  input.autocomplete = 'off';
+  input.spellcheck = false;
+  row.appendChild(input);
+  if (isPrivate) {
+    const reveal = document.createElement('button');
+    reveal.className = 'secondary';
+    reveal.textContent = 'Mostrar';
+    reveal.onclick = function() {
+      const showing = input.type === 'text';
+      input.type = showing ? 'password' : 'text';
+      reveal.textContent = showing ? 'Mostrar' : 'Ocultar';
+    };
+    row.appendChild(reveal);
+  }
+  const copy = document.createElement('button');
+  copy.className = 'secondary';
+  copy.textContent = 'Copiar';
+  copy.onclick = async function() {
+    try {
+      await navigator.clipboard.writeText(value);
+      document.getElementById('status').textContent = isPrivate
+        ? 'Clave privada copiada al portapapeles. Pégala directamente en el campo secreto de Render; no la envíes por chat.'
+        : 'Clave pública copiada. Esta sí se puede compartir para configurar ' + publicKeyName + '.';
+    } catch (error) {
+      document.getElementById('status').textContent = 'No se pudo copiar automáticamente. Selecciona y copia el campo manualmente; no compartas la clave privada.';
+    }
+  };
+  row.appendChild(copy);
+  parent.appendChild(row);
+}
+async function generateKeys() {
+  const button = document.getElementById('generate');
+  const host = document.getElementById('keys');
+  button.disabled = true;
+  host.replaceChildren();
+  host.hidden = true;
+  document.getElementById('status').textContent = 'Generando los tres pares en este navegador…';
+  try {
+    if (!window.isSecureContext || !crypto || !crypto.subtle) {
+      throw new Error('Se requiere un contexto HTTPS seguro con Web Crypto.');
+    }
+    const generated = [];
+    for (const service of serviceNames) {
+      const pair = await crypto.subtle.generateKey({name:'Ed25519'}, true, ['sign','verify']);
+      const privateDer = await crypto.subtle.exportKey('pkcs8', pair.privateKey);
+      const publicDer = await crypto.subtle.exportKey('spki', pair.publicKey);
+      generated.push({
+        service:service,
+        privateKey:pemOneLine('PRIVATE KEY', privateDer),
+        publicKey:pemOneLine('PUBLIC KEY', publicDer)
+      });
+    }
+    for (const item of generated) {
+      const card = document.createElement('section');
+      card.className = 'card';
+      const title = document.createElement('h2');
+      title.textContent = item.service.title;
+      card.appendChild(title);
+      const note = document.createElement('p');
+      note.className = 'small';
+      note.textContent = 'En Render: variable sensible ARKHE_SERVICE_PRIVATE_KEY. En Vercel Preview: ' + item.service.keyName + '.';
+      card.appendChild(note);
+      makeField(card, 'Clave privada — no compartir', item.privateKey, true, '');
+      makeField(card, 'Clave pública — se puede compartir', item.publicKey, false, item.service.keyName);
+      host.appendChild(card);
+    }
+    host.hidden = false;
+    document.getElementById('status').textContent = 'Tres pares generados en memoria del navegador. No recargues la página hasta copiar las claves privadas directamente en Render.';
+  } catch (error) {
+    host.replaceChildren();
+    host.hidden = true;
+    document.getElementById('status').textContent = 'No se generaron claves: ' + (error && error.message ? error.message : String(error));
+  } finally {
+    button.disabled = false;
+  }
+}
+function clearKeys() {
+  document.getElementById('keys').replaceChildren();
+  document.getElementById('keys').hidden = true;
+  document.getElementById('status').textContent = 'Contenido borrado de la página. Si ya copiaste una clave privada, revisa que se haya guardado solo en Render.';
+}
+</script>
+</body>
+</html>
