@@ -30,7 +30,10 @@ psql -v ON_ERROR_STOP=1 -f "$PAIR_GUARD_MIGRATION"
 LOG_FILE="$(mktemp)"
 RACE_LOG="$(mktemp)"
 FIRST_LOG="$(mktemp)"
-trap 'rm -f "$LOG_FILE" "$RACE_LOG" "$FIRST_LOG"' EXIT
+LOCK_READY="$(mktemp)"
+rm -f "$LOCK_READY"
+export LOCK_READY
+trap 'rm -f "$LOG_FILE" "$RACE_LOG" "$FIRST_LOG" "$LOCK_READY"' EXIT
 
 # Case 1: an unrelated actor already has a relation for #5/#6. Tlacuilo's
 # proposal must be rejected before an insert can land.
@@ -100,11 +103,26 @@ psql -v ON_ERROR_STOP=1 >"$FIRST_LOG" 2>&1 <<'SQL' &
 BEGIN;
 INSERT INTO public.arkhe_semantic_relations (source_node_id,target_node_id,provenance)
 VALUES (5,6,'{"delegation":{"policy_id":"concurrent-unrelated-policy"}}'::jsonb);
+\! touch "$LOCK_READY"
 SELECT pg_sleep(2);
 COMMIT;
 SQL
 FIRST_PID=$!
-sleep 0.3
+LOCK_HELD=""
+for _ in $(seq 1 50); do
+  if [[ -f "$LOCK_READY" ]]; then
+    LOCK_HELD=1
+    break
+  fi
+  sleep 0.1
+done
+if [[ -z "$LOCK_HELD" ]]; then
+  kill "$FIRST_PID" 2>/dev/null || true
+  wait "$FIRST_PID" 2>/dev/null || true
+  cat "$FIRST_LOG"
+  echo "FAIL: first PostgreSQL transaction did not signal that its pair lock was held." >&2
+  exit 1
+fi
 if psql -v ON_ERROR_STOP=1 -c "INSERT INTO public.arkhe_semantic_relations (source_node_id,target_node_id,provenance) VALUES (5,6,'{\"delegation\":{\"policy_id\":\"tlacuilo-smoke-relation-5-6-duplicates-v1\"}}'::jsonb);" >"$RACE_LOG" 2>&1; then
   wait "$FIRST_PID"
   cat "$RACE_LOG"
