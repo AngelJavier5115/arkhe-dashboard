@@ -132,6 +132,7 @@ BEGIN
 
   v_metadata := p_metadata || jsonb_build_object(
     'convocatoria_id', p_convocatoria_id::text,
+    'dispatch_id', p_dispatch_id::text,
     'completion_fingerprint', p_fingerprint
   );
 
