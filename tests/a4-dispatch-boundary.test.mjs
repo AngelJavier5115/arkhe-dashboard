@@ -98,8 +98,13 @@ test('Dispatch RPCs are one-use, audience-bound, time-limited, and not executabl
   assert.match(migration, /p_actor_id IS DISTINCT FROM '2a003935-f248-442c-96fc-dcee29c4d41a'/);
   assert.match(migration, /v_convocatoria\.convocada_por IS DISTINCT FROM p_actor_id/);
   assert.match(migration, /SELECT \*[\s\S]*?FROM public\.core_invocation_dispatches[\s\S]*?FOR UPDATE/);
+  assert.match(migration, /p_investigador_id NOT IN \([\s\S]*?656726d1-8209-4240-8169-a7434074609d/);
   assert.match(migration, /v_dispatch\.investigador_id IS DISTINCT FROM p_investigador_id/);
   assert.match(migration, /status <> 'issued'/);
+  assert.doesNotMatch(migration, /GRANT SELECT, INSERT, UPDATE ON TABLE public\.core_invocation_dispatches/);
+  const humanLock = migration.indexOf('FROM public.convocatorias_ronda', migration.indexOf('FUNCTION public.arkhe_claim_invocation_dispatch'));
+  const dispatchLock = migration.indexOf('FROM public.core_invocation_dispatches', migration.indexOf('FUNCTION public.arkhe_claim_invocation_dispatch'));
+  assert.ok(humanLock >= 0 && dispatchLock > humanLock, 'claim must lock invocation before dispatch row to maintain consistent lock order');
   assert.match(migration, /REVOKE ALL ON FUNCTION public\.arkhe_issue_invocation_dispatch[\s\S]*?FROM PUBLIC, anon, authenticated/);
   assert.match(migration, /REVOKE ALL ON FUNCTION public\.arkhe_claim_invocation_dispatch[\s\S]*?FROM PUBLIC, anon, authenticated/);
   assert.match(migration, /GRANT EXECUTE ON FUNCTION public\.arkhe_claim_invocation_dispatch[\s\S]*?TO service_role/);
