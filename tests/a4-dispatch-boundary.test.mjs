@@ -50,21 +50,34 @@ test('Core outbound dispatch signature binds service audience, dispatch ID and e
   );
 });
 
-test('Core dispatch endpoint is selected by investigator allowlist and fails closed without Preview configuration', () => {
+test('Core dispatch endpoint requires the exact per-investigator Preview host and fails closed otherwise', () => {
   assert.throws(() => resolveCoreDispatchTarget('atlas', {
     ARKHE_ATLAS_DISPATCH_URL: 'https://atlas-bot-8in0.onrender.com/arkhe/invocation'
-  }), /producción queda bloqueada/);
+  }), /deben|debe apuntar exactamente/);
 
   assert.equal(resolveCoreDispatchTarget('atlas', {
     ARKHE_ATLAS_DISPATCH_URL: 'https://atlas-preview.onrender.com/arkhe/invocation'
   }).url, 'https://atlas-preview.onrender.com/arkhe/invocation');
+  assert.equal(resolveCoreDispatchTarget('aletheia', {
+    ARKHE_ALETHEIA_DISPATCH_URL: 'https://aletheia-preview.onrender.com/arkhe/invocation'
+  }).url, 'https://aletheia-preview.onrender.com/arkhe/invocation');
+  assert.equal(resolveCoreDispatchTarget('tekton', {
+    ARKHE_TEKTON_DISPATCH_URL: 'https://tekton-preview.onrender.com/arkhe/invocation'
+  }).url, 'https://tekton-preview.onrender.com/arkhe/invocation');
+
   assert.throws(() => resolveCoreDispatchTarget('atlas', {}), /no está configurado/);
   assert.throws(() => resolveCoreDispatchTarget('atlas', {
     ARKHE_ATLAS_DISPATCH_URL: 'https://example.org/arkhe/invocation'
-  }), /HTTPS de Render/);
+  }), /debe apuntar exactamente/);
   assert.throws(() => resolveCoreDispatchTarget('atlas', {
     ARKHE_ATLAS_DISPATCH_URL: 'http://atlas-preview.onrender.com/arkhe/invocation'
-  }), /HTTPS de Render/);
+  }), /debe apuntar exactamente/);
+  assert.throws(() => resolveCoreDispatchTarget('atlas', {
+    ARKHE_ATLAS_DISPATCH_URL: 'https://other-unrelated-service.onrender.com/arkhe/invocation'
+  }), /debe apuntar exactamente/);
+  assert.throws(() => resolveCoreDispatchTarget('atlas', {
+    ARKHE_ATLAS_DISPATCH_URL: 'https://aletheia-preview.onrender.com/arkhe/invocation'
+  }), /debe apuntar exactamente.*atlas-preview\.onrender\.com/);
 });
 
 test('Only recent human governance can issue a dispatch; the target is derived from the database row', () => {
