@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { createHash } from 'node:crypto';
 import { authenticateServiceRequest, expectedInvestigatorForService, MAX_CLOCK_SKEW_MS } from './service-auth.js';
 import { getAuthSupabase, getWebAuthnConfig, requireSameOrigin } from './human-auth-config.js';
 import { getHumanSession, isRecentReauthentication } from './human-session.js';
@@ -39,9 +40,11 @@ function json(res, status, body) {
 
 function getSupabase() {
   const url = process.env.VITE_SUPABASE_URL;
-  const key = process.env.VITE_SUPABASE_KEY;
-  if (!url || !key) throw new Error('Faltan VITE_SUPABASE_URL o VITE_SUPABASE_KEY.');
-  return createClient(url, key);
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) throw new Error('Faltan VITE_SUPABASE_URL o SUPABASE_SERVICE_ROLE_KEY.');
+  return createClient(url, key, {
+    auth: { persistSession: false, autoRefreshToken: false }
+  });
 }
 
 function requireCoreToken(req) {
@@ -418,6 +421,23 @@ async function actionGetInvocation(supabase, body, serviceIdentity) {
   };
 }
 
+function raiseMappedCompletionError(error) {
+  const mapped = {
+    '23505': [409, 'La convocatoria ya fue completada con otra carga o existe una intervención previa; requiere reconciliación manual. No reintentes automáticamente.'],
+    'P0001': [409, 'La convocatoria está en un estado que no permite completarla; requiere reconciliación manual.'],
+    'P0002': [404, 'Convocatoria no encontrada.'],
+    '42501': [403, 'La convocatoria no pertenece al investigador autenticado.'],
+    '22023': [400, 'La carga de intervención no cumple los requisitos de validación.'],
+    '40001': [409, 'La convocatoria cambió durante la operación; reconcilia su estado antes de repetir.']
+  }[error?.code];
+
+  if (!mapped) throw error;
+  const safe = new Error(mapped[1]);
+  safe.status = mapped[0];
+  safe.code = error.code;
+  throw safe;
+}
+
 async function actionCompleteInvocation(supabase, body, serviceIdentity) {
   const investigadorId = requireBoundInvestigator(serviceIdentity);
   const rondaId = uuid(body.ronda_id, 'ronda_id');
@@ -435,15 +455,28 @@ async function actionCompleteInvocation(supabase, body, serviceIdentity) {
     .eq('id', convocatoriaId)
     .single();
 
-  if (convocatoriaError) throw convocatoriaError;
-  if (!convocatoria) throw new Error('Convocatoria no encontrada.');
-  if (convocatoria.investigador_id !== investigadorId || convocatoria.ronda_id !== rondaId) {
-    throw new Error('La respuesta no coincide con la convocatoria.');
+  if (convocatoriaError) {
+    if (convocatoriaError.code === 'PGRST116') {
+      const missing = new Error('Convocatoria no encontrada.');
+      missing.status = 404;
+      throw missing;
+    }
+    throw convocatoriaError;
   }
-  if (!['enviada', 'pendiente'].includes(convocatoria.estado)) {
-    throw new Error('La convocatoria ya fue completada o cancelada.');
+  if (!convocatoria) {
+    const missing = new Error('Convocatoria no encontrada.');
+    missing.status = 404;
+    throw missing;
+  }
+  if (convocatoria.investigador_id !== investigadorId || convocatoria.ronda_id !== rondaId) {
+    const forbidden = new Error('La convocatoria no pertenece al investigador autenticado.');
+    forbidden.status = 403;
+    throw forbidden;
   }
 
+  // A completed invocation is deliberately allowed to reach the atomic RPC:
+  // the RPC returns the original intervention for an exact replay, but rejects
+  // a different payload. State checks belong inside the locked transaction.
   const incomingMetadata = body.metadata ?? {};
   const provenanceLevel = incomingMetadata.nivel_procedencia ?? null;
 
@@ -464,46 +497,59 @@ async function actionCompleteInvocation(supabase, body, serviceIdentity) {
     }
   }
 
+  const tipo = body.tipo ?? 'perspectiva';
+  const contenido = body.contenido;
+  const respondeA = body.responde_a_intervencion_id ?? convocatoria.foco_intervencion_id ?? null;
+  const nodoId = body.nodo_id ?? null;
   const metadata = {
     ...incomingMetadata,
-    convocatoria_id: convocatoriaId,
     identidad_version: body.identidad_version ?? null,
     modelo: body.modelo ?? null,
     proveedor: body.proveedor ?? null,
     servicio_autenticado: serviceIdentity.serviceId
   };
 
-  const { data: intervencion, error: intervencionError } = await supabase.rpc(
-    'arkhe_insert_intervencion_ronda',
-    {
-      p_ronda_id: rondaId,
-      p_investigador_id: investigadorId,
-      p_tipo: body.tipo ?? 'perspectiva',
-      p_contenido: body.contenido,
-      p_responde_a_intervencion_id:
-        body.responde_a_intervencion_id ?? convocatoria.foco_intervencion_id ?? null,
-      p_nodo_id: body.nodo_id ?? null,
-      p_metadata: metadata
-    }
-  );
+  // Fingerprint every persisted semantic field so an ambiguous retry is
+  // idempotent only when it repeats the same payload.
+  const fingerprintPayload = {
+    convocatoria_id: convocatoriaId,
+    ronda_id: rondaId,
+    investigador_id: investigadorId,
+    tipo,
+    contenido,
+    responde_a_intervencion_id: respondeA,
+    nodo_id: nodoId,
+    metadata
+  };
+  const fingerprint = createHash('sha256')
+    .update(JSON.stringify(fingerprintPayload), 'utf8')
+    .digest('hex');
 
-  if (intervencionError) throw intervencionError;
+  const { data, error } = await supabase.rpc('arkhe_complete_invocation_atomically', {
+    p_convocatoria_id: convocatoriaId,
+    p_ronda_id: rondaId,
+    p_investigador_id: investigadorId,
+    p_tipo: tipo,
+    p_contenido: contenido,
+    p_responde_a_intervencion_id: respondeA,
+    p_nodo_id: nodoId,
+    p_metadata: metadata,
+    p_fingerprint: fingerprint
+  });
 
-  const { data: updatedConvocatoria, error: updateError } = await supabase
-    .from('convocatorias_ronda')
-    .update({
-      estado: 'completada',
-      completed_at: new Date().toISOString()
-    })
-    .eq('id', convocatoriaId)
-    .select('*')
-    .single();
+  if (error) raiseMappedCompletionError(error);
+  if (!data?.intervencion || !data?.convocatoria) {
+    const inconsistent = new Error('La respuesta de la RPC transaccional está incompleta; requiere reconciliación manual.');
+    inconsistent.status = 503;
+    throw inconsistent;
+  }
 
-  if (updateError) throw updateError;
-
-  return { intervencion, convocatoria: updatedConvocatoria };
+  return {
+    intervencion: data.intervencion,
+    convocatoria: data.convocatoria,
+    idempotent_replay: data.idempotent_replay === true
+  };
 }
-
 
 
 async function actionFailInvocation(supabase, body, serviceIdentity) {
