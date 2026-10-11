@@ -52,7 +52,7 @@ Cuerpo JSON esperado:
 
 1. Generar la pareja Ed25519 en un entorno local confiable: la clave privada sólo residirá en el entorno privado del ejecutor; nunca se copia al navegador, repositorio o chat. La clave pública sólo se configura en el Preview aprobado.
 2. La API del Preview vuelve a verificar los textos actuales de ambos nodos y que no exista una relación previa en ninguna dirección. Si no puede comprobarlo o hay discrepancias, aborta antes de reservar la escritura.
-3. Confirmar que las migraciones `20261010225627_allow_tlacuilo_executor_nonces.sql` y `20261010225642_enforce_tlacuilo_policy_single_use.sql` fueron revisadas y aplicadas deliberadamente antes de habilitar una escritura.
+3. Las migraciones `20261010225627_allow_tlacuilo_executor_nonces.sql`, `20261010225642_enforce_tlacuilo_policy_single_use.sql` y `20261011051206_tlacuilo_atomic_pair_guard.sql` ya aparecen aplicadas en la historia de `arkhe-core`. No volver a aplicarlas; confirmar su estado mediante una consulta de solo lectura antes de una futura escritura.
 4. Enviar la única propuesta al endpoint `POST /api/semantic-relations` del Preview protegido de Vercel de la rama `security/tlacuilo-delegation`.
 5. Verificar HTTP 201 y conservar el ID devuelto.
 6. Consultar Supabase y confirmar exactamente una relación #5 → #6 de tipo `duplicates`, atribuida a Atlas, autenticada como Tlacuilo y con un solo evento `relation_created`.
@@ -68,6 +68,6 @@ La última consulta independiente de Supabase encontró:
 - 0 relaciones con la política de Tlacuilo;
 - 1 nonce de Tlacuilo, registrado como protección anti-repetición.
 
-Supabase registra las migraciones `20261010225627_allow_tlacuilo_executor_nonces` y `20261010225642_enforce_tlacuilo_policy_single_use` como aplicadas, y la consulta de solo lectura confirmó el índice único parcial. **No volver a aplicar estas migraciones** sin una nueva auditoría.
+La historia de migraciones de `arkhe-core` confirma que `20261010225627_allow_tlacuilo_executor_nonces`, `20261010225642_enforce_tlacuilo_policy_single_use` y `20261011051206_tlacuilo_atomic_pair_guard` están aplicadas. La última agrega el guard atómico del par no ordenado #5/#6: si ya existe cualquier relación para ese par, la política de Tlacuilo es rechazada; si Tlacuilo lo registra primero, otra relación para ese mismo par también se rechaza. **No volver a aplicar ninguna de estas migraciones ni probar el guard creando datos adicionales.**
 
 Aunque el preflight y la barrera de uso único están probados, la escritura sigue bloqueada hasta terminar la auditoría del PR, confirmar el destino de despliegue y obtener autorización humana específica para la propuesta exacta.
