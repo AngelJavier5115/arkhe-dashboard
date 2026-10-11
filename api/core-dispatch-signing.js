@@ -66,7 +66,7 @@ export function resolveCoreDispatchTarget(serviceId, env = process.env) {
     url.search ||
     url.hash
   ) {
-    throw dispatchError(target.endpointEnv + ' debe ser una URL HTTPS de Render que termine en /arkhe/invocation.');
+    throw dispatchError(target.endpointEnv + ' debe apuntar a una URL HTTPS de Render de staging en /arkhe/invocation; producción queda bloqueada.');
   }
 
   return { ...target, serviceId, url: url.toString() };
