@@ -8,7 +8,7 @@ const IDS = {
 };
 
 function fakeSupabase(convocatoria) {
-  const calls = { rpc: 0, update: 0, lastRpcArgs: null };
+  const calls = { rpc: 0, update: 0, lastRpcArgs: null, lastRpcName: null };
 
   const table = {
     select() { return this; },
@@ -19,11 +19,16 @@ function fakeSupabase(convocatoria) {
 
   const supabase = {
     from() { return table; },
-    rpc: async (_name, args) => {
+    rpc: async (name, args) => {
       calls.rpc += 1;
+      calls.lastRpcName = name;
       calls.lastRpcArgs = args;
       return {
-        data: { id: 'intervencion-test', ...args },
+        data: {
+          intervencion: { id: 'intervencion-test', metadata: args.p_metadata },
+          convocatoria: { ...convocatoria, estado: 'completada' },
+          idempotent_replay: false
+        },
         error: null
       };
     }
@@ -63,7 +68,10 @@ test('A2-A: the authenticated Atlas service can complete its own convocatoria', 
   );
 
   assert.equal(calls.rpc, 1);
+  assert.equal(calls.lastRpcName, 'arkhe_complete_invocation_atomically');
+  assert.equal(calls.update, 0, 'completion must not update convocatoria in a second API call');
   assert.equal(calls.lastRpcArgs.p_investigador_id, IDS.atlas);
+  assert.match(calls.lastRpcArgs.p_fingerprint, /^[0-9a-f]{64}$/);
 });
 
 test('A2-B: a different logical investigator cannot complete Atlas convocatoria', async () => {
