@@ -8,15 +8,18 @@ import {
 const TARGETS = Object.freeze({
   atlas: {
     env: 'ARKHE_ATLAS_INVOCATION_URL',
-    host: 'atlas-bot-8in0.onrender.com'
+    productionHost: 'atlas-bot-8in0.onrender.com',
+    previewHost: 'arkhe-atlas-preview.onrender.com'
   },
   aletheia: {
     env: 'ARKHE_ALETHEIA_INVOCATION_URL',
-    host: 'aletheia-bot-u6r3.onrender.com'
+    productionHost: 'aletheia-bot-u6r3.onrender.com',
+    previewHost: 'arkhe-aletheia-preview.onrender.com'
   },
   tekton: {
     env: 'ARKHE_TEKTON_INVOCATION_URL',
-    host: 'tekton-bot.onrender.com'
+    productionHost: 'tekton-bot.onrender.com',
+    previewHost: 'arkhe-tekton-preview.onrender.com'
   }
 });
 
@@ -125,15 +128,14 @@ function targetUrl(serviceId) {
   }
 
   const vercelEnv = process.env.VERCEL_ENV;
-  const hostIsRender = url.hostname.endsWith('.onrender.com');
-  const isProductionHost = url.hostname === target.host;
+  const isPreviewHost = url.hostname === target.previewHost;
+  const isProductionHost = url.hostname === target.productionHost;
   let environmentTargetAllowed = false;
 
   if (vercelEnv === 'preview') {
-    // A Preview deployment must never send a signed request to the live bot.
-    environmentTargetAllowed = hostIsRender &&
-      !isProductionHost &&
-      /(?:preview|staging|test)/i.test(url.hostname);
+    // Preview is pinned to one explicit staging hostname per investigator.
+    // Merely ending in .onrender.com or containing "preview" is not enough.
+    environmentTargetAllowed = isPreviewHost;
   } else if (vercelEnv === 'production') {
     environmentTargetAllowed = isProductionHost &&
       process.env.ARKHE_CORE_DISPATCH_ENABLED === 'true';
