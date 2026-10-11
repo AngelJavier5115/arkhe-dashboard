@@ -777,3 +777,18 @@ test('a one-shot database uniqueness conflict returns 409 and never creates a se
     ), false);
   });
 });
+
+
+test('Tlacuilo preflight reports unavailable node reads as 503, not a state conflict', async () => {
+  await withTlacuiloKey(async () => {
+    const req = signedRequest({ action: 'preflight' }, { serviceId: 'tlacuilo' });
+    const supabase = createFakeSupabase({ nodeReadError: { code: '42501' } });
+    const res = createResponse();
+
+    await createSemanticRelationsHandler({ getSupabase: () => supabase })(req, res);
+
+    assert.equal(res.statusCode, 503);
+    assert.match(res.body.error, /no pudo consultar los nodos aprobados/);
+    assert.deepEqual(supabase.calls.filter(call => call.kind === 'rpc'), []);
+  });
+});
