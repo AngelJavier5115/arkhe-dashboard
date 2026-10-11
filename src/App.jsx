@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import { Activity, Circle, HelpCircle, FileText, CheckCircle2, XCircle, Search } from 'lucide-react';
 import KnowledgeGraph from './KnowledgeGraph';
 import HumanAuthPanel from './HumanAuthPanel';
+import RoundGovernorPanel from './RoundGovernorPanel';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseKey = import.meta.env.VITE_SUPABASE_KEY;
@@ -84,6 +85,7 @@ export default function App() {
         </header>
 
         <HumanAuthPanel />
+        <RoundGovernorPanel />
 
         {/* Métricas Principales */}
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3 sm:gap-4">
