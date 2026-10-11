@@ -146,9 +146,9 @@ test('Dispatch RPCs are one-use, audience-bound, time-limited, and not executabl
   assert.match(migration, /REVOKE ALL ON FUNCTION public\.arkhe_issue_invocation_dispatch[\s\S]*?FROM PUBLIC, anon, authenticated/);
   assert.match(migration, /REVOKE ALL ON FUNCTION public\.arkhe_claim_invocation_dispatch[\s\S]*?FROM PUBLIC, anon, authenticated/);
   assert.match(migration, /GRANT EXECUTE ON FUNCTION public\.arkhe_claim_invocation_dispatch[\s\S]*?TO service_role/);
-  assert.match(migration, /FUNCTION public\\.arkhe_validate_invocation_dispatch/);
-  assert.match(migration, /FUNCTION public\\.arkhe_fail_invocation_atomically/);
-  assert.match(migration, /FUNCTION public\\.arkhe_reconcile_invocation_dispatch/);
-  assert.match(migration, /claimed_at <= now\(\) - interval '5 minutes'/);
+  assert.match(migration, /FUNCTION public\.arkhe_validate_invocation_dispatch/);
+  assert.match(migration, /FUNCTION public\.arkhe_fail_invocation_atomically/);
+  assert.match(migration, /FUNCTION public\.arkhe_reconcile_invocation_dispatch/);
+  assert.match(migration, /v_dispatch\.claimed_at > now\(\) - interval '5 minutes'/);
 
 });
