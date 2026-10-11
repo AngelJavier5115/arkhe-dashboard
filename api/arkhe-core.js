@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
+import { createCoreDispatchEnvelope, resolveCoreDispatchTarget, CORE_DISPATCH_TARGETS } from './core-dispatch-signing.js';
 import { authenticateServiceRequest, expectedInvestigatorForService, MAX_CLOCK_SKEW_MS } from './service-auth.js';
 import { getAuthSupabase, getWebAuthnConfig, requireSameOrigin } from './human-auth-config.js';
 import { getHumanSession, isRecentReauthentication } from './human-session.js';
@@ -31,7 +32,8 @@ const allowedInvocationTypes = new Set([
 const SERVICE_INVESTIGATOR_ACTIONS = new Set([
   'obtener_convocatoria',
   'completar_convocatoria',
-  'fallar_convocatoria'
+  'fallar_convocatoria',
+  'claim_convocation_dispatch'
 ]);
 
 function json(res, status, body) {
@@ -176,6 +178,147 @@ function requireBoundInvestigator(serviceIdentity) {
 
   return serviceIdentity.investigadorId;
 }
+
+function mapDispatchRpcError(error) {
+  const mapped = {
+    '23505': [409, 'El despacho ya fue reclamado o existe otro despacho activo; no reintentes automáticamente.'],
+    'P0001': [409, 'El despacho o la convocatoria no está disponible; reconcilia antes de repetir.'],
+    'P0002': [404, 'No se encontró la convocatoria o el despacho firmado.'],
+    '42501': [403, 'La identidad autenticada no está autorizada para este despacho.'],
+    '22023': [400, 'Los parámetros del despacho no son válidos.']
+  };
+  const [status, message] = mapped[error?.code] ?? [500, error?.message ?? 'Falló la operación de despacho.'];
+  const mappedError = new Error(message);
+  mappedError.status = status;
+  throw mappedError;
+}
+
+async function actionClaimInvocationDispatch(supabase, body, serviceIdentity) {
+  const investigadorId = requireBoundInvestigator(serviceIdentity);
+  const convocatoriaId = requireUuidShape(body.convocatoria_id, 'convocatoria_id');
+  const dispatchId = requireUuidShape(body.dispatch_id, 'dispatch_id');
+
+  if (body.investigador_id && body.investigador_id !== investigadorId) {
+    const forbidden = new Error('El investigador declarado no coincide con la identidad del servicio.');
+    forbidden.status = 403;
+    throw forbidden;
+  }
+
+  const { data, error } = await supabase.rpc('arkhe_claim_invocation_dispatch', {
+    p_dispatch_id: dispatchId,
+    p_convocatoria_id: convocatoriaId,
+    p_investigador_id: investigadorId
+  });
+
+  if (error) mapDispatchRpcError(error);
+  return { dispatch: data };
+}
+
+async function actionDispatchInvocation(supabase, body, actorId) {
+  if (actorId !== ANGEL_ID) {
+    const forbidden = new Error('Sólo Ángel puede autorizar el despacho de convocatorias.');
+    forbidden.status = 403;
+    throw forbidden;
+  }
+
+  const convocatoriaId = requireUuidShape(body.convocatoria_id, 'convocatoria_id');
+  const { data: convocatoria, error: convocatoriaError } = await supabase
+    .from('convocatorias_ronda')
+    .select('id, ronda_id, convocada_por, investigador_id, tipo_convocatoria, estado, created_at')
+    .eq('id', convocatoriaId)
+    .maybeSingle();
+
+  if (convocatoriaError) throw convocatoriaError;
+  if (!convocatoria) {
+    const missing = new Error('Convocatoria no encontrada.');
+    missing.status = 404;
+    throw missing;
+  }
+  if (convocatoria.convocada_por !== actorId) {
+    const forbidden = new Error('La convocatoria no fue creada por el gobernador humano autenticado.');
+    forbidden.status = 403;
+    throw forbidden;
+  }
+  if (!['enviada', 'pendiente'].includes(convocatoria.estado)) {
+    const conflict = new Error('La convocatoria no está disponible para despacho.');
+    conflict.status = 409;
+    throw conflict;
+  }
+
+  const targetEntry = Object.entries(CORE_DISPATCH_TARGETS)
+    .find(([, value]) => value.investigadorId === convocatoria.investigador_id);
+  if (!targetEntry) {
+    const invalid = new Error('La convocatoria no corresponde a un investigador de servicio permitido.');
+    invalid.status = 400;
+    throw invalid;
+  }
+
+  const [serviceId] = targetEntry;
+  const target = resolveCoreDispatchTarget(serviceId);
+  const envelope = createCoreDispatchEnvelope({
+    serviceId,
+    convocatoriaId,
+    endpointUrl: target.url
+  });
+
+  // Persist the one-shot dispatch before contacting the bot. A network timeout
+  // is ambiguous, so the dispatch is never retried automatically by this API.
+  const { error: issueError } = await supabase.rpc('arkhe_issue_invocation_dispatch', {
+    p_dispatch_id: envelope.dispatchId,
+    p_convocatoria_id: convocatoriaId,
+    p_investigador_id: target.investigadorId,
+    p_actor_id: actorId,
+    p_expires_at: envelope.expiresAt
+  });
+  if (issueError) mapDispatchRpcError(issueError);
+
+  let response;
+  let responseBody;
+  try {
+    response = await fetch(envelope.url, {
+      method: 'POST',
+      headers: envelope.headers,
+      body: envelope.serializedBody,
+      signal: AbortSignal.timeout(7000)
+    });
+    try {
+      responseBody = await response.json();
+    } catch {
+      responseBody = null;
+    }
+  } catch {
+    const ambiguous = new Error(
+      'El despacho ' + envelope.dispatchId +
+      ' no tuvo confirmación de red. No lo reintentes automáticamente; reconcilia el estado tras revisar la convocatoria.'
+    );
+    ambiguous.status = 502;
+    throw ambiguous;
+  }
+
+  if (
+    response.status !== 202 ||
+    responseBody?.ok !== true ||
+    responseBody?.accepted !== true ||
+    responseBody?.dispatch_id !== envelope.dispatchId
+  ) {
+    const ambiguous = new Error(
+      'El despacho ' + envelope.dispatchId + ' no fue confirmado como aceptado (HTTP ' +
+      response.status + '). No lo reintentes automáticamente; revisa el registro de despacho y la convocatoria.'
+    );
+    ambiguous.status = 502;
+    throw ambiguous;
+  }
+
+  return {
+    accepted: true,
+    dispatch_id: envelope.dispatchId,
+    investigador_id: target.investigadorId,
+    service_id: serviceId,
+    convocatoria_id: convocatoriaId,
+    expires_at: envelope.expiresAt
+  };
+}
+
 
 async function assertParticipants(supabase, investigacionId, participantIds) {
   const { data, error } = await supabase
@@ -784,6 +927,12 @@ export default async function handler(req, res) {
         break;
       case 'convocar_investigadores':
         result = await actionCreateInvocations(supabase, body, humanIdentity);
+        break;
+      case 'claim_convocation_dispatch':
+        result = await actionClaimInvocationDispatch(supabase, body, serviceIdentity);
+        break;
+      case 'despachar_convocatoria':
+        result = await actionDispatchInvocation(supabase, body, humanIdentity);
         break;
       case 'obtener_convocatoria':
         result = await actionGetInvocation(supabase, body, serviceIdentity);
