@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { startAuthentication, startRegistration } from '@simplewebauthn/browser';
+import CoreGovernancePanel from './CoreGovernancePanel';
 import { KeyRound, LogIn, LogOut, ShieldCheck, ShieldAlert } from 'lucide-react';
 
 async function jsonFetch(path, init = {}) {
@@ -271,6 +272,11 @@ export default function HumanAuthPanel() {
               </ul>
             )}
           </div>
+
+          <CoreGovernancePanel
+            authenticated={authenticated}
+            reauthenticatedAt={reauthenticatedAt}
+          />
         </div>
       )}
 
