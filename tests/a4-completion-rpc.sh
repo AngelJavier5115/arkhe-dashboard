@@ -204,7 +204,7 @@ psql -v ON_ERROR_STOP=1 -c "INSERT INTO public.convocatorias_ronda (
 ) VALUES (
   'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
   'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
-  'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+  '2a003935-f248-442c-96fc-dcee29c4d41a',
   '6deb143d-17c4-4d1a-a2d2-1fd9ddf2853f',
   'perspectiva','enviada',
   'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee'
