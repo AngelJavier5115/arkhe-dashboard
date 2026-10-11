@@ -14,6 +14,12 @@ const SERVICE_CONFIG = Object.freeze({
   tekton: {
     investigadorId: '656726d1-8209-4240-8169-a7434074609d',
     publicKeyEnv: 'ARKHE_TEKTON_PUBLIC_KEY'
+  },
+  // Tlacuilo is a separate executor identity delegated to one narrowly-scoped
+  // proposal attributed to Atlas. It does not reuse Atlas's signing key.
+  tlacuilo: {
+    investigadorId: '6deb143d-17c4-4d1a-a2d2-1fd9ddf2853f',
+    publicKeyEnv: 'ARKHE_TLACUILO_PUBLIC_KEY'
   }
 });
 
