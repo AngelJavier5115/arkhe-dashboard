@@ -168,3 +168,26 @@ Evidencia observada por el operador en el Preview aislado `security/a4-idempoten
 - No aplicar las migraciones A.4 a Supabase compartido, no modificar variables de los servicios Render que apuntan a `main` y no fusionar las PR hasta reunir la evidencia E2E y completar revisión humana.
 
 **Regla operativa:** no pegar claves privadas, secretos de bootstrap ni `service_role` en chat, documentación o issues.
+
+
+## 10. Preview aislado de los investigadores — 2026-10-11
+
+Se crearon tres servicios Render Free nuevos, separados de los servicios activos de `main`:
+
+- Atlas Preview: `https://atlas-preview.onrender.com` (service `srv-db61vead0e5s7393kg0g`).
+- Aletheia Preview: `https://aletheia-preview.onrender.com` (service `srv-db61vlh42hec73ak5gjg`).
+- Tekton Preview: `https://tekton-preview.onrender.com` (service `srv-db61vmo473hc73cqr710`).
+
+Los tres despliegan `security/a4-signed-core-client`; Render reportó los tres como `live`, y sus logs confirman el servidor HTTP activo y `ARKHE_A4_PREVIEW_NO_DISCORD=true`. No se copiaron tokens de Discord de producción. Aletheia usa un marcador no válido de API en Preview; Atlas y Tekton no tienen claves de proveedor configuradas. Los tres usan únicamente el proyecto Supabase aislado `axfqtovorxohkpkkgcul` y la URL del Core Preview.
+
+Configuración de firma preparada para la rama Preview:
+- Vercel tiene la variable sensible `ARKHE_CORE_DISPATCH_PRIVATE_KEY` y las claves públicas `ARKHE_ATLAS_PUBLIC_KEY`, `ARKHE_ALETHEIA_PUBLIC_KEY` y `ARKHE_TEKTON_PUBLIC_KEY`, todas limitadas a `security/a4-idempotent-completion` y Preview.
+- Render tiene `ARKHE_CORE_DISPATCH_PUBLIC_KEY` en los tres servicios, para validar la firma entrante Core→bot.
+
+**Barrera que sigue cerrada a propósito:** no se provisionó `ARKHE_SERVICE_PRIVATE_KEY` en los tres servicios Render y no se configuraron en Vercel `ARKHE_ATLAS_DISPATCH_URL`, `ARKHE_ALETHEIA_DISPATCH_URL` ni `ARKHE_TEKTON_DISPATCH_URL`. Por tanto, la autenticación de los bots hacia Core y el despacho real siguen incompletos. No se ha realizado ninguna ronda, reclamación, intervención ni envío de prueba. Las claves públicas por investigador se consideran preparadas pero no operativas hasta instalar de forma segura su clave privada correspondiente en cada servicio y verificar la pareja.
+
+Los tres servicios actuales de producción continúan sin modificación y apuntan a `main`. No se aplicaron migraciones nuevas y los PR siguen Draft.
+
+### Verificación de limpieza de Vercel
+
+La consulta de metadatos actual devuelve cero entradas generales de bootstrap y cero para `security/a4-idempotent-completion`. Sin embargo, aún devuelve una entrada `ARKHE_AUTH_BOOTSTRAP_SECRET` y una `ARKHE_AUTH_BOOTSTRAP_EXPIRES_AT` para la rama histórica `audit/a4-human-auth`, con vencimiento antiguo. La interfaz del usuario puede mostrar una diferencia de estado; confirmar ese par histórico en Vercel antes de declarar la limpieza global completa.
