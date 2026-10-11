@@ -63,6 +63,7 @@ test('A2-A: the authenticated Atlas service can complete its own convocatoria', 
       investigador_id: IDS.atlas,
       ronda_id: atlasConvocatoria.ronda_id,
       convocatoria_id: atlasConvocatoria.id,
+      dispatch_id: '22222222-2222-4222-8222-222222222222',
       contenido: 'perspectiva de prueba'
     }, atlasService)
   );
@@ -83,6 +84,7 @@ test('A2-B: a different logical investigator cannot complete Atlas convocatoria'
         investigador_id: IDS.tekton,
         ronda_id: atlasConvocatoria.ronda_id,
         convocatoria_id: atlasConvocatoria.id,
+      dispatch_id: '22222222-2222-4222-8222-222222222222',
         contenido: 'intento de suplantación lógica'
       }, atlasService),
     /no coincide con la identidad del servicio/i
@@ -100,6 +102,7 @@ test('A2-C: a Tekton executor cannot submit Atlas identity even with a valid ser
         investigador_id: IDS.atlas,
         ronda_id: atlasConvocatoria.ronda_id,
         convocatoria_id: atlasConvocatoria.id,
+      dispatch_id: '22222222-2222-4222-8222-222222222222',
         contenido: 'suplantación de ejecutor'
       }, tektonService),
     /no coincide con la identidad del servicio/i
@@ -116,6 +119,7 @@ test('A2-D: without provider-response-attested metadata, model/provider remain s
       investigador_id: IDS.atlas,
       ronda_id: atlasConvocatoria.ronda_id,
       convocatoria_id: atlasConvocatoria.id,
+      dispatch_id: '22222222-2222-4222-8222-222222222222',
       contenido: 'procedencia de modelo de prueba',
       modelo: 'fabricated-model-should-not-be-trusted',
       proveedor: 'fabricated-provider'
@@ -135,6 +139,7 @@ test('A2-F: provider-response-attested provenance requires observed model and pr
       investigador_id: IDS.atlas,
       ronda_id: atlasConvocatoria.ronda_id,
       convocatoria_id: atlasConvocatoria.id,
+      dispatch_id: '22222222-2222-4222-8222-222222222222',
       contenido: 'procedencia observada de prueba',
       modelo: 'openai/gpt-oss-20b',
       proveedor: 'OpenRouter',
@@ -161,6 +166,7 @@ test('A2-G: provider-response-attested provenance rejects model mismatch', async
         investigador_id: IDS.atlas,
         ronda_id: atlasConvocatoria.ronda_id,
         convocatoria_id: atlasConvocatoria.id,
+      dispatch_id: '22222222-2222-4222-8222-222222222222',
         contenido: 'procedencia inconsistente de prueba',
         modelo: 'openai/gpt-oss-120b',
         proveedor: 'OpenRouter',
@@ -186,6 +192,7 @@ test('A2-E: direct invocation without authenticated service identity is rejected
         investigador_id: IDS.atlas,
         ronda_id: atlasConvocatoria.ronda_id,
         convocatoria_id: atlasConvocatoria.id,
+      dispatch_id: '22222222-2222-4222-8222-222222222222',
         contenido: 'sin identidad de ejecutor'
       }),
     /identidad de servicio requerida/i
@@ -208,6 +215,7 @@ test('A4 completion rejects malformed payloads before reaching the atomic RPC', 
       () => actionCompleteInvocation(supabase, {
         ronda_id: atlasConvocatoria.ronda_id,
         convocatoria_id: atlasConvocatoria.id,
+      dispatch_id: '22222222-2222-4222-8222-222222222222',
         contenido: 'texto válido',
         ...payload
       }, atlasService),
