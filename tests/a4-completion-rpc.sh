@@ -148,6 +148,19 @@ if ! grep -q "duplicate key value" "$LOG_FILE"; then
   exit 1
 fi
 if psql -v ON_ERROR_STOP=1 -c "INSERT INTO public.core_dispatch_claims (dispatch_id, convocatoria_id, service_id)
+VALUES ('77777777-7777-4777-8777-777777777777',
+        'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+        'atlas');" >"$LOG_FILE" 2>&1; then
+  cat "$LOG_FILE"
+  echo "FAIL: a second dispatch ID was accepted for the same invocation." >&2
+  exit 1
+fi
+if ! grep -q "duplicate key value" "$LOG_FILE"; then
+  cat "$LOG_FILE"
+  echo "FAIL: second dispatch for the same invocation was rejected for an unexpected reason." >&2
+  exit 1
+fi
+if psql -v ON_ERROR_STOP=1 -c "INSERT INTO public.core_dispatch_claims (dispatch_id, convocatoria_id, service_id)
 VALUES ('88888888-8888-4888-8888-888888888888',
         'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
         'not-a-service');" >"$LOG_FILE" 2>&1; then
