@@ -297,14 +297,24 @@ async function actionDispatchInvocation(supabase, body, actorId) {
       method: 'POST',
       headers: envelope.headers,
       body: envelope.serializedBody,
-      signal: AbortSignal.timeout(7000)
+      // Render Preview cold starts can take longer than the previous 7s window.
+      // Stay within the Vercel function maxDuration configured in vercel.json.
+      signal: AbortSignal.timeout(20_000)
     });
     try {
       responseBody = await response.json();
     } catch {
       responseBody = null;
     }
-  } catch {
+  } catch (transportError) {
+    // Structured and intentionally allow-listed diagnostics: never log keys, signatures or request bodies.
+    console.error('[Arkhe Core] Dispatch transport did not confirm', JSON.stringify({
+      dispatchId: envelope.dispatchId,
+      serviceId,
+      errorName: typeof transportError?.name === 'string' ? transportError.name : null,
+      errorCode: typeof transportError?.code === 'string' ? transportError.code : null,
+      timeoutMs: 20_000
+    }));
     const ambiguous = new Error(
       'El despacho ' + envelope.dispatchId +
       ' no tuvo confirmación de red. No lo reintentes automáticamente; reconcilia el estado tras revisar la convocatoria.'
