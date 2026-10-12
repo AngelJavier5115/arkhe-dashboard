@@ -113,6 +113,18 @@ test('Staging round recovery is read-only, human-governed, and scoped to A4-STAG
   assert.doesNotMatch(core.slice(serviceActionsStart, serviceActionsEnd), /consultar_ronda_prueba/);
 });
 
+test('Service connectivity diagnostic authenticates the signed service and does not claim a dispatch', () => {
+  assert.match(core, /'diagnosticar_conexion'/);
+  assert.match(core, /case 'diagnosticar_conexion':[\\s\\S]*?actionDiagnoseServiceConnection\\(serviceIdentity\\)/);
+  const start = core.indexOf('async function actionDiagnoseServiceConnection');
+  const end = core.indexOf('async function actionDispatchInvocation', start);
+  assert.ok(start >= 0 && end > start, 'service diagnostic handler must exist before human dispatch handler');
+  const handler = core.slice(start, end);
+  assert.match(handler, /serviceIdentity\\?\\.verified/);
+  assert.match(handler, /nonce_recorded: true/);
+  assert.doesNotMatch(handler, /\\.rpc\\(|\\.insert\\(|\\.update\\(|\\.delete\\(/);
+});
+
 test('Processing, completion and failure require the exact claimed dispatch ID', () => {
   const getStart = core.indexOf('async function actionGetInvocation');
   const getEnd = core.indexOf('function raiseMappedCompletionError', getStart);
