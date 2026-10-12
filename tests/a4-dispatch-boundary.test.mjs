@@ -166,6 +166,24 @@ test('Browser auth and Core requests time out and release loading state instead 
   assert.match(humanAuthPanel, /finally \{\s*clearTimeout\(timeoutId\);\s*\}/);
 });
 
+test('Expired dispatch constraint permits an audit note without weakening issued, claimed, or revoked invariants', () => {
+  const constraintMigration = read('supabase/migrations/20261012054000_allow_audited_expired_dispatch.sql');
+  assert.match(constraintMigration, /status = 'expired'[\\s\\S]*?claimed_at IS NULL[\\s\\S]*?revoked_at IS NULL[\\s\\S]*?revoked_by IS NULL/);
+  assert.match(constraintMigration, /reconciliation_note IS NULL OR \\(length\\(btrim\\(reconciliation_note\\)\\) >= 10 AND length\\(btrim\\(reconciliation_note\\)\\) <= 500\\)/);
+  assert.match(constraintMigration, /status = 'revoked'[\\s\\S]*?claimed_at IS NOT NULL[\\s\\S]*?revoked_at IS NOT NULL[\\s\\S]*?revoked_by IS NOT NULL/);
+});
+
+test('Passkey flow waits for credential metadata before switching to the authenticated governance panel', () => {
+  assert.match(humanAuthPanel, /Fetch the dependent credential list before exposing the authenticated panel/);
+  const refreshStart = humanAuthPanel.indexOf('const refreshSession = async');
+  const refreshEnd = humanAuthPanel.indexOf('useEffect(', refreshStart);
+  const refresh = humanAuthPanel.slice(refreshStart, refreshEnd);
+  assert.ok(refresh.indexOf('await jsonFetch(\'/api/auth/webauthn/credentials\')') < refresh.indexOf('setAuthenticated(isAuthenticated)'));
+  assert.match(humanAuthPanel, /setProgress\('Confirma tu identidad con Face ID/);
+  assert.match(humanAuthPanel, /Face ID confirmado\. Verificando la respuesta y la sesión/);
+  assert.match(humanAuthPanel, /finally \\{[\\s\\S]*?setProgress\(''\);[\\s\\S]*?setBusy\(false\)/);
+});
+
 test('Human reconciliation is recent-WebAuthn-only and explicitly requires an audit note', () => {
   const start = core.indexOf('async function actionReconcileInvocationDispatch');
   const end = core.indexOf('async function actionGetInvocation', start);
