@@ -65,6 +65,7 @@ export default function CoreGovernancePanel({ authenticated, reauthenticatedAt }
   const [busy, setBusy] = useState('');
   const [status, setStatus] = useState(null);
   const [roundCreationUncertain, setRoundCreationUncertain] = useState(false);
+  const [roundLookupId, setRoundLookupId] = useState('47aa67e6-8e04-40d8-828c-1e43ce4f44fa');
 
   const recentReauth = useMemo(
     () => hasRecentWebAuthn(reauthenticatedAt),
@@ -181,6 +182,55 @@ export default function CoreGovernancePanel({ authenticated, reauthenticatedAt }
         message: uncertain
           ? 'No se pudo confirmar si Arkhé Core alcanzó a crear la ronda. No la vuelvas a crear automáticamente; inspecciona el Core antes de continuar. Detalle: ' + (error?.message ?? 'error desconocido')
           : (error?.message ?? 'No fue posible crear la ronda.'),
+      });
+    } finally {
+      setBusy('');
+    }
+  };
+
+  const loadExistingStagingRound = async () => {
+    if (!requireRecentAuth()) return;
+    if (round || roundCreationUncertain || busy !== '') {
+      setStatus({
+        kind: 'warning',
+        message: 'Antes de recuperar otra ronda, resuelve el estado del formulario actual. No se creó ni despachó nada automáticamente.',
+      });
+      return;
+    }
+    const rondaId = String(roundLookupId ?? '').trim();
+    if (!rondaId) {
+      setStatus({ kind: 'error', message: 'Introduce el ID de la ronda sintética que quieres recuperar.' });
+      return;
+    }
+
+    setBusy('load');
+    setStatus(null);
+    try {
+      const loaded = await coreAction({
+        action: 'consultar_ronda_prueba',
+        ronda_id: rondaId,
+      });
+      const items = Array.isArray(loaded.convocatorias) ? loaded.convocatorias : [];
+      setRound(loaded.ronda);
+      setInvocations(items.map(item => ({
+        ...item,
+        investigatorName: item.investigador_nombre ?? INVESTIGATORS.find(person => person.id === item.investigador_id)?.name ?? 'Investigador desconocido',
+        dispatchState: 'idle',
+        dispatchId: null,
+        dispatchMessage: null,
+        dispatchAt: null,
+        reconcileNote: '',
+        confirmRuntimeChecked: false,
+        reconciliationUnknown: false,
+      })));
+      setStatus({
+        kind: 'success',
+        message: 'Ronda sintética recuperada desde Supabase. No se ha enviado ningún despacho. Revisa la convocatoria y el estado del servicio antes de autorizar un envío.',
+      });
+    } catch (error) {
+      setStatus({
+        kind: error?.networkAmbiguous ? 'warning' : 'error',
+        message: error?.message ?? 'No fue posible recuperar la ronda sintética.',
       });
     } finally {
       setBusy('');
@@ -327,6 +377,31 @@ export default function CoreGovernancePanel({ authenticated, reauthenticatedAt }
         {recentReauth
           ? 'Reautenticación WebAuthn reciente. El servidor volverá a verificarla en cada acción.'
           : 'Reautenticación WebAuthn pendiente o caducada. Usa “Reautenticar” arriba antes de iniciar, despachar o reconciliar.'}
+      </div>
+
+      <div className="space-y-2 rounded-lg border border-slate-800 bg-slate-900/40 p-3">
+        <div className="text-xs font-semibold text-slate-200">Recuperar ronda sintética existente</div>
+        <p className="text-[11px] leading-relaxed text-slate-400">
+          Recupera una ronda guardada en Supabase después de recargar la página. Esta consulta es de sólo lectura y está limitada al proyecto de prueba A4-STAGE-001.
+        </p>
+        <label className="block text-xs text-slate-300">
+          ID de ronda
+          <input
+            value={roundLookupId}
+            onChange={event => setRoundLookupId(event.target.value)}
+            disabled={busy !== '' || Boolean(round) || roundCreationUncertain}
+            maxLength={80}
+            className="mt-1 w-full rounded-lg border border-slate-800 bg-slate-900 px-3 py-2 text-sm text-slate-100 outline-none focus:border-indigo-500 disabled:opacity-60"
+          />
+        </label>
+        <button
+          type="button"
+          onClick={loadExistingStagingRound}
+          disabled={!recentReauth || busy !== '' || Boolean(round) || roundCreationUncertain}
+          className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs font-medium text-slate-200 hover:border-indigo-500 disabled:cursor-not-allowed disabled:opacity-45"
+        >
+          {busy === 'load' ? 'Consultando en el Core…' : 'Recuperar ronda registrada'}
+        </button>
       </div>
 
       <form onSubmit={createRoundAndInvocations} className="space-y-3">
