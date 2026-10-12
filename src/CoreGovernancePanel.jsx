@@ -18,22 +18,41 @@ const ROUND_TYPES = [
 
 const RECONCILIATION_WAIT_MS = 5 * 60 * 1000;
 
+const CORE_REQUEST_TIMEOUT_MS = 15000;
+const READ_ONLY_CORE_ACTIONS = new Set(['consultar_ronda_prueba']);
+
 async function coreAction(payload) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), CORE_REQUEST_TIMEOUT_MS);
   let response;
+  let body;
+
   try {
     response = await fetch('/api/arkhe-core', {
       method: 'POST',
       credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
+      signal: controller.signal,
     });
+    body = await response.json().catch(() => ({}));
   } catch {
-    const error = new Error('No hubo confirmación de red del Core. No repitas la operación automáticamente.');
-    error.networkAmbiguous = true;
+    const readOnly = READ_ONLY_CORE_ACTIONS.has(payload?.action);
+    const timedOut = controller.signal.aborted;
+    const error = new Error(timedOut
+      ? (readOnly
+        ? 'La consulta al Core tardó más de 15 segundos. No se modificó la ronda; vuelve a intentarlo más tarde.'
+        : 'La operación superó el límite de espera. Su resultado puede ser ambiguo; no la repitas. Actualiza y revisa el estado guardado primero.')
+      : (readOnly
+        ? 'No hubo respuesta de red del Core al consultar la ronda.'
+        : 'No hubo confirmación de red del Core. No repitas la operación automáticamente.'));
+    error.networkAmbiguous = !readOnly;
+    error.timedOut = timedOut;
     throw error;
+  } finally {
+    clearTimeout(timeoutId);
   }
 
-  const body = await response.json().catch(() => ({}));
   if (!response.ok || body?.ok === false) {
     const error = new Error(body?.error ?? 'Arkhé Core rechazó la operación.');
     error.status = response.status;
