@@ -3,17 +3,37 @@ import { startAuthentication, startRegistration } from '@simplewebauthn/browser'
 import CoreGovernancePanel from './CoreGovernancePanel';
 import { KeyRound, LogIn, LogOut, ShieldCheck, ShieldAlert } from 'lucide-react';
 
-async function jsonFetch(path, init = {}) {
-  const response = await fetch(path, {
-    credentials: 'same-origin',
-    ...init,
-    headers: {
-      ...(init.body ? { 'Content-Type': 'application/json' } : {}),
-      ...(init.headers ?? {}),
-    },
-  });
+const AUTH_REQUEST_TIMEOUT_MS = 15000;
 
-  const body = await response.json().catch(() => ({}));
+async function jsonFetch(path, init = {}) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), AUTH_REQUEST_TIMEOUT_MS);
+  let response;
+  let body;
+
+  try {
+    response = await fetch(path, {
+      credentials: 'same-origin',
+      ...init,
+      headers: {
+        ...(init.body ? { 'Content-Type': 'application/json' } : {}),
+        ...(init.headers ?? {}),
+      },
+      signal: controller.signal,
+    });
+    body = await response.json().catch(() => ({}));
+  } catch {
+    const timedOut = controller.signal.aborted;
+    const error = new Error(timedOut
+      ? 'La solicitud de autenticación tardó más de 15 segundos. Actualiza la página y comprueba la sesión y las passkeys antes de repetir el registro o la autenticación.'
+      : 'No hubo respuesta de red del servicio de autenticación. Comprueba la sesión y las passkeys antes de repetir la operación.');
+    error.networkAmbiguous = (init.method ?? 'GET').toUpperCase() !== 'GET';
+    error.timedOut = timedOut;
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+
   if (!response.ok) throw new Error(body.error ?? 'La operación no pudo completarse.');
   return body;
 }
