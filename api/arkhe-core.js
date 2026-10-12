@@ -471,12 +471,29 @@ async function actionLoadStagingRound(supabase, body, actorId) {
   }
   const investigatorNames = new Map(investigators.map(item => [item.id, item.nombre]));
 
+  const invocationIds = (convocatorias ?? []).map(item => item.id);
+  let latestDispatches = [];
+  if (invocationIds.length) {
+    const { data, error } = await supabase
+      .from('core_invocation_dispatches')
+      .select('dispatch_id, convocatoria_id, status, issued_at, expires_at, claimed_at, revoked_at, reconciliation_note')
+      .in('convocatoria_id', invocationIds)
+      .order('issued_at', { ascending: true });
+    if (error) throw error;
+    latestDispatches = data ?? [];
+  }
+  const latestDispatchByInvocation = new Map();
+  for (const dispatch of latestDispatches) {
+    latestDispatchByInvocation.set(dispatch.convocatoria_id, dispatch);
+  }
+
   return {
     ronda,
     investigacion,
     convocatorias: (convocatorias ?? []).map(item => ({
       ...item,
-      investigador_nombre: investigatorNames.get(item.investigador_id) ?? 'Investigador desconocido'
+      investigador_nombre: investigatorNames.get(item.investigador_id) ?? 'Investigador desconocido',
+      latest_dispatch: latestDispatchByInvocation.get(item.id) ?? null
     }))
   };
 }
@@ -638,8 +655,8 @@ async function actionReconcileInvocationDispatch(supabase, body, actorId) {
   });
 
   if (error) mapDispatchRpcError(error);
-  if (data?.status !== 'revoked') {
-    const invalid = new Error('Arkhé Core no confirmó la revocación del despacho anterior.');
+  if (!['revoked', 'expired'].includes(data?.status)) {
+    const invalid = new Error('Arkhé Core no confirmó una resolución segura del despacho anterior.');
     invalid.status = 502;
     throw invalid;
   }
