@@ -12,6 +12,8 @@ const read = name => fs.readFileSync(new URL('../' + name, import.meta.url), 'ut
 const core = read('api/arkhe-core.js');
 const signing = read('api/core-dispatch-signing.js');
 const migration = read('supabase/migrations/20261011053000_signed_invocation_dispatch.sql');
+const reconciliationMigration = read('supabase/migrations/20261012052000_reconcile_expired_unclaimed_dispatch.sql');
+const panel = read('src/CoreGovernancePanel.jsx');
 const vercelConfig = JSON.parse(read('vercel.json'));
 
 test('Core outbound dispatch signature binds service audience, dispatch ID and exact serialized body', () => {
@@ -161,6 +163,30 @@ test('Human reconciliation is recent-WebAuthn-only and explicitly requires an au
   assert.match(action, /reconciliation_note/);
   assert.match(action, /arkhe_reconcile_invocation_dispatch/);
   assert.match(action, /requires_new_human_dispatch/);
+  assert.match(action, /\['revoked', 'expired'\]\.includes\(data\?\.status\)/);
+});
+
+test('Expired unclaimed dispatches resolve to expired, never falsely revoked, after human review', () => {
+  assert.match(reconciliationMigration, /v_dispatch\.status IN \('issued', 'expired'\)/);
+  assert.match(reconciliationMigration, /v_dispatch\.claimed_at IS NULL/);
+  assert.match(reconciliationMigration, /v_dispatch\.expires_at <= now\(\)/);
+  assert.match(reconciliationMigration, /v_dispatch\.issued_at > now\(\) - interval '5 minutes'/);
+  assert.match(reconciliationMigration, /SET status = 'expired',[\s\S]*?reconciliation_note = btrim\(p_reconciliation_note\)/);
+  assert.match(reconciliationMigration, /'status', 'expired'/);
+  assert.match(reconciliationMigration, /v_dispatch\.status = 'claimed'[\s\S]*?SET status = 'revoked'/);
+  assert.match(reconciliationMigration, /Only the authenticated human governor may reconcile a dispatch/);
+});
+
+test('Staging round recovery restores the latest persisted dispatch state rather than resetting to idle', () => {
+  const start = core.indexOf('async function actionLoadStagingRound');
+  const end = core.indexOf('async function actionStartRound', start);
+  assert.ok(start >= 0 && end > start);
+  const recovery = core.slice(start, end);
+  assert.match(recovery, /from\('core_invocation_dispatches'\)/);
+  assert.match(recovery, /latest_dispatch: latestDispatchByInvocation\.get\(item\.id\) \?\? null/);
+  assert.match(panel, /const previous = item\.latest_dispatch \?\? null/);
+  assert.match(panel, /dispatchState = 'ambiguous'/);
+  assert.match(panel, /const canDispatch = \['idle', 'revoked', 'expired', 'failed-before-issue'\]/);
 });
 
 test('Investigator claim is derived from signed service identity and calls the one-shot claim RPC', () => {
