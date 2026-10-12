@@ -222,3 +222,15 @@ Se confirma que no se observan despliegues nuevos en los tres servicios `main` t
 ## 13. Incidente de sesión del generador — 2026-10-12
 
 El operador informa que la pestaña del generador se reinició antes de conservar las claves privadas de la generación anterior. No se pueden reconstruir privadas a partir de sus claves públicas. El generador ya fue corregido para pedir la descarga de un paquete local con los cuatro pares antes de cambiar de aplicación. Congelar la configuración anterior: ningún valor se considera emparejado hasta cargar la nueva privada en el destino Preview correspondiente y actualizar la pública pareada en el otro extremo. No tocar variables de los servicios `main`.
+
+
+## 14. Rotación coordinada de claves A.4 — 2026-10-12
+
+El operador generó un nuevo juego local y descargó un paquete privado en el iPhone. Sólo compartió las cuatro claves públicas. Las variables públicas de Atlas/Aletheia/Tekton en Vercel se actualizaron para Preview y `security/a4-idempotent-completion`. La clave pública de Core del nuevo juego se instaló como `ARKHE_CORE_DISPATCH_PUBLIC_KEY` en los tres servicios Render Preview; los despliegues de los tres servicios terminaron con estado `live`.
+
+Próxima configuración manual pendiente, usando el paquete local y sin pegar privadas en chat:
+- Vercel Preview, rama `security/a4-idempotent-completion`: editar la variable sensible preexistente `ARKHE_CORE_DISPATCH_PRIVATE_KEY` con la privada de la sección Core→investigadores. No crear un duplicado.
+- Render `atlas-preview`, `aletheia-preview`, `tekton-preview`: configurar en cada servicio `ARKHE_SERVICE_PRIVATE_KEY` con la privada individual correspondiente. Si ya existe la variable en ese servicio Preview, editarla; nunca seleccionar los servicios homónimos de `main`.
+- Después de completar los cuatro privados, crear un nuevo despliegue Preview de Vercel y verificar firmas en ambas direcciones. Los destinos de despacho siguen sin configurarse y no deben habilitarse antes de esa verificación.
+
+No se modificaron variables ni desplegables de los servicios de producción/main. Las claves públicas de Vercel no se consideran operativas hasta demostrar que las privadas respectivas están instaladas y emparejadas.
