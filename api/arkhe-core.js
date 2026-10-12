@@ -474,11 +474,9 @@ async function actionLoadStagingRound(supabase, body, actorId) {
   const invocationIds = (convocatorias ?? []).map(item => item.id);
   let latestDispatches = [];
   if (invocationIds.length) {
-    const { data, error } = await supabase
-      .from('core_invocation_dispatches')
-      .select('dispatch_id, convocatoria_id, status, issued_at, expires_at, claimed_at, revoked_at, reconciliation_note')
-      .in('convocatoria_id', invocationIds)
-      .order('issued_at', { ascending: true });
+    const { data, error } = await supabase.rpc('arkhe_get_latest_invocation_dispatches', {
+      p_convocatoria_ids: invocationIds
+    });
     if (error) throw error;
     latestDispatches = data ?? [];
   }
