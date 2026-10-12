@@ -204,3 +204,16 @@ Procedimiento pendiente del operador:
 4. Borrar la vista de claves y cerrar la página al terminar. Mantener los tres destinos de despacho de Core sin configurar hasta verificar que las claves públicas y privadas coinciden y que los checks continúan verdes.
 
 Las claves públicas de investigador que ahora existen en Vercel no tienen aún sus correspondientes privadas instaladas en Render; tratarlas como valores provisionales y reemplazarlas por las públicas de los pares que se generen en el dispositivo. La clave de firma Core→bot es otro par distinto y permanece configurada en Vercel/Render.
+
+
+## 12. Aclaración de custodia de claves — 2026-10-11
+
+Durante la configuración manual, el operador encontró `ARKHE_SERVICE_PRIVATE_KEY` preexistente en los formularios de los servicios Render históricos y el panel rechazó crear un duplicado. No sobrescribir ni eliminar las claves de los servicios activos `main`: su finalidad y emparejamiento deben verificarse antes de rotarlas.
+
+Las claves públicas `ARKHE_ATLAS_PUBLIC_KEY`, `ARKHE_ALETHEIA_PUBLIC_KEY` y `ARKHE_TEKTON_PUBLIC_KEY` para `security/a4-idempotent-completion` se actualizaron con el juego público generado para la prueba A.4. Sólo son compatibles con las claves privadas privadas del mismo juego generado. No está demostrado que coincidan con las claves preexistentes encontradas en los servicios históricos. Por ello, no se puede declarar todavía verificada la dirección bot→Core.
+
+Los servicios Render `atlas-preview`, `aletheia-preview` y `tekton-preview` son nuevos y separados de `main`; deben recibir cada uno su clave privada correspondiente al juego público de la rama A.4. Si no se conservan las privadas del juego público actual, generar un juego nuevo y reemplazar coordinadamente sólo sus públicas en la variable Vercel Preview de esa rama y sus privadas en los tres servicios Preview. Nunca reutilizar, mostrar o copiar claves privadas de los servicios de producción.
+
+Se confirma que no se observan despliegues nuevos en los tres servicios `main` tras los despliegues listados del 2026-10-07. Esto no sustituye la revisión manual de sus variables, pero no hay evidencia en el historial de despliegues de que se haya aplicado un nuevo despliegue de producción durante este intento de configuración.
+
+**Regla de trabajo actual:** congelar cambios de claves en producción. No dar por emparejada ninguna clave sólo por el nombre/encabezado PEM. Verificar pares y límites de entorno antes de configurar URLs de despacho o realizar peticiones de prueba.
