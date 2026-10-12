@@ -167,6 +167,15 @@ test('Browser auth and Core requests time out and release loading state instead 
   assert.match(humanAuthPanel, /finally \{\s*clearTimeout\(timeoutId\);\s*\}/);
 });
 
+test('WebAuthn ceremonies time out and abort stalled browser prompts so the auth panel can recover', () => {
+  assert.match(humanAuthPanel, /WEBAUTHN_CEREMONY_TIMEOUT_MS = 60000/);
+  assert.match(humanAuthPanel, /WebAuthnAbortService\.createNewAbortSignal\(\)/);
+  assert.match(humanAuthPanel, /withWebAuthnCeremonyTimeout\(\s*startAuthentication/);
+  assert.match(humanAuthPanel, /withWebAuthnCeremonyTimeout\(\s*startRegistration/);
+  assert.match(humanAuthPanel, /Promise\.race\(\[ceremonyPromise, timeoutPromise\]\)/);
+  assert.match(humanAuthPanel, /finally \{\s*clearTimeout\(timeoutId\);\s*\}/);
+});
+
 test('Expired dispatch constraint permits an audit note without weakening issued, claimed, or revoked invariants', () => {
   assert.ok(constraintMigration.includes("status = 'expired'"));
   assert.ok(constraintMigration.includes("claimed_at IS NULL"));
