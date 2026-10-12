@@ -13,6 +13,7 @@ const core = read('api/arkhe-core.js');
 const signing = read('api/core-dispatch-signing.js');
 const migration = read('supabase/migrations/20261011053000_signed_invocation_dispatch.sql');
 const reconciliationMigration = read('supabase/migrations/20261012052000_reconcile_expired_unclaimed_dispatch.sql');
+const failedInvocationReconciliationMigration = read('supabase/migrations/20261012230000_allow_reconcile_error_claimed_dispatch.sql');
 const dispatchStateMigration = read('supabase/migrations/20261012053000_read_latest_invocation_dispatches_staging.sql');
 const constraintMigration = read('supabase/migrations/20261012054000_allow_audited_expired_dispatch.sql');
 const panel = read('src/CoreGovernancePanel.jsx');
@@ -223,6 +224,18 @@ test('Expired unclaimed dispatches resolve to expired, never falsely revoked, af
   assert.match(reconciliationMigration, /'status', 'expired'/);
   assert.match(reconciliationMigration, /v_dispatch\.status = 'claimed'[\s\S]*?SET status = 'revoked'/);
   assert.match(reconciliationMigration, /Only the authenticated human governor may reconcile a dispatch/);
+});
+
+test('A.4 can revoke a claimed dispatch after terminal invocation error without altering invocation state', () => {
+  assert.match(failedInvocationReconciliationMigration, /ip\.codigo = 'A4-STAGE-001'/);
+  assert.match(failedInvocationReconciliationMigration, /v_convocatoria\.estado NOT IN \('enviada', 'pendiente'\)/);
+  assert.match(failedInvocationReconciliationMigration, /IF v_dispatch\.status = 'claimed'[\s\S]*?v_convocatoria\.estado NOT IN \('enviada', 'pendiente', 'error'\)/);
+  assert.match(failedInvocationReconciliationMigration, /v_dispatch\.claimed_at > now\(\) - interval '5 minutes'/);
+  assert.match(failedInvocationReconciliationMigration, /metadata ->> 'convocatoria_id' = p_convocatoria_id::text[\s\S]*?metadata ->> 'dispatch_id' = p_dispatch_id::text/);
+  assert.match(failedInvocationReconciliationMigration, /SET status = 'revoked',[\s\S]*?revoked_by = p_actor_id,[\s\S]*?reconciliation_note = btrim\(p_reconciliation_note\)/);
+  assert.match(failedInvocationReconciliationMigration, /Only a pending invocation with an unclaimed expired dispatch can be marked expired/);
+  assert.match(failedInvocationReconciliationMigration, /REVOKE ALL ON FUNCTION public\.arkhe_reconcile_invocation_dispatch\(uuid, uuid, uuid, text\) FROM PUBLIC, anon, authenticated/);
+  assert.match(failedInvocationReconciliationMigration, /GRANT EXECUTE ON FUNCTION public\.arkhe_reconcile_invocation_dispatch\(uuid, uuid, uuid, text\) TO service_role/);
 });
 
 test('Persisted dispatch state is read through a staging-scoped server-only RPC', () => {
