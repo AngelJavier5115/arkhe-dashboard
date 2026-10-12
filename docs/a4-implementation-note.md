@@ -195,15 +195,15 @@ La consulta de metadatos actual devuelve cero entradas generales de bootstrap y 
 
 ## 11. Aprovisionamiento local de claves para Render Preview
 
-Se publicó una herramienta estática de uso temporal en `public/a4-ed25519-keygen.html`, accesible dentro del Preview de la rama. Usa Web Crypto para generar tres pares Ed25519 diferentes en el navegador, exporta PEM en una línea con `\\n` literal y no contiene llamadas de red (`fetch`, XHR o `sendBeacon`); una CSP con `connect-src 'none'` refuerza esa restricción. La rutina de formato se verificó con `node:crypto` y una prueba de firma/verificación. Aún debe comprobarse desde Chrome en el iPhone antes de confiar en las claves producidas ahí.
+Se publicó una herramienta estática de uso temporal en `public/a4-ed25519-keygen.html`, accesible dentro del Preview de la rama. Usa Web Crypto para generar cuatro pares Ed25519 en el navegador: Core→investigadores y uno por cada bot. Solicita descargar un paquete de texto local para sobrevivir a la suspensión de la pestaña; el paquete contiene privadas y debe permanecer privado, fuera de chat/repositorios, y borrarse después de configurar las variables. La página no contiene llamadas de red (`fetch`, XHR o `sendBeacon`); una CSP con `connect-src 'none'` refuerza esa restricción. Aún debe comprobarse desde Chrome en el iPhone antes de confiar en las claves producidas ahí.
 
 Procedimiento pendiente del operador:
 1. Abrir el Preview estable y visitar `/a4-ed25519-keygen.html`.
-2. Generar un par por investigador. Copiar cada **clave privada directamente desde el navegador al campo secreto `ARKHE_SERVICE_PRIVATE_KEY`** del servicio Render que corresponda. No enviar las privadas por chat ni guardarlas en GitHub.
+2. Generar una sola vez los cuatro pares y confirmar que se descargó el paquete local. Usar el par Core→investigadores para configurar `ARKHE_CORE_DISPATCH_PRIVATE_KEY` en Vercel Preview y `ARKHE_CORE_DISPATCH_PUBLIC_KEY` en cada servicio Render Preview. Usar los tres pares de investigadores para configurar cada `ARKHE_SERVICE_PRIVATE_KEY` en el Render Preview correspondiente y cada variable pública de investigador en Vercel Preview. Nunca añadir duplicados; si una variable existe en el servicio Preview correcto, editar su valor.
 3. Copiar únicamente la **clave pública** de cada par para actualizar las variables Vercel `ARKHE_ATLAS_PUBLIC_KEY`, `ARKHE_ALETHEIA_PUBLIC_KEY` y `ARKHE_TEKTON_PUBLIC_KEY`, siempre con target Preview y rama `security/a4-idempotent-completion`.
 4. Borrar la vista de claves y cerrar la página al terminar. Mantener los tres destinos de despacho de Core sin configurar hasta verificar que las claves públicas y privadas coinciden y que los checks continúan verdes.
 
-Las claves públicas de investigador que ahora existen en Vercel no tienen aún sus correspondientes privadas instaladas en Render; tratarlas como valores provisionales y reemplazarlas por las públicas de los pares que se generen en el dispositivo. La clave de firma Core→bot es otro par distinto y permanece configurada en Vercel/Render.
+Las claves públicas de investigador que ahora existen en Vercel no se consideran emparejadas con las claves privadas observadas en Render; tratarlas como provisionales y reemplazarlas coordinadamente por las públicas de los pares descargados. La clave de firma Core→bot también debe reemplazarse de forma coordinada con su nuevo par.
 
 
 ## 12. Aclaración de custodia de claves — 2026-10-11
@@ -217,3 +217,8 @@ Los servicios Render `atlas-preview`, `aletheia-preview` y `tekton-preview` son 
 Se confirma que no se observan despliegues nuevos en los tres servicios `main` tras los despliegues listados del 2026-10-07. Esto no sustituye la revisión manual de sus variables, pero no hay evidencia en el historial de despliegues de que se haya aplicado un nuevo despliegue de producción durante este intento de configuración.
 
 **Regla de trabajo actual:** congelar cambios de claves en producción. No dar por emparejada ninguna clave sólo por el nombre/encabezado PEM. Verificar pares y límites de entorno antes de configurar URLs de despacho o realizar peticiones de prueba.
+
+
+## 13. Incidente de sesión del generador — 2026-10-12
+
+El operador informa que la pestaña del generador se reinició antes de conservar las claves privadas de la generación anterior. No se pueden reconstruir privadas a partir de sus claves públicas. El generador ya fue corregido para pedir la descarga de un paquete local con los cuatro pares antes de cambiar de aplicación. Congelar la configuración anterior: ningún valor se considera emparejado hasta cargar la nueva privada en el destino Preview correspondiente y actualizar la pública pareada en el otro extremo. No tocar variables de los servicios `main`.
