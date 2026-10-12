@@ -389,6 +389,70 @@ async function loadRoundContext(supabase, rondaId) {
   };
 }
 
+async function actionLoadStagingRound(supabase, body, actorId) {
+  if (actorId !== ANGEL_ID) {
+    const forbidden = new Error('Sólo el gobernador humano puede recuperar la ronda sintética.');
+    forbidden.status = 403;
+    throw forbidden;
+  }
+
+  const rondaId = requireUuidShape(body.ronda_id, 'ronda_id');
+  const { data: ronda, error: rondaError } = await supabase
+    .from('rondas_investigacion')
+    .select('id, numero, tipo, estado, pregunta, investigacion_id, created_at, updated_at')
+    .eq('id', rondaId)
+    .maybeSingle();
+
+  if (rondaError) throw rondaError;
+  if (!ronda) {
+    const missing = new Error('No se encontró la ronda solicitada.');
+    missing.status = 404;
+    throw missing;
+  }
+
+  const { data: investigacion, error: investigacionError } = await supabase
+    .from('investigaciones_proyecto')
+    .select('id, codigo, titulo, objetivo, pregunta, descripcion, estado')
+    .eq('id', ronda.investigacion_id)
+    .maybeSingle();
+
+  if (investigacionError) throw investigacionError;
+  if (!investigacion || investigacion.codigo !== 'A4-STAGE-001') {
+    const outsideScope = new Error('La recuperación está limitada a la investigación sintética A4-STAGE-001 de Preview.');
+    outsideScope.status = 404;
+    throw outsideScope;
+  }
+
+  const { data: convocatorias, error: convocatoriasError } = await supabase
+    .from('convocatorias_ronda')
+    .select('id, ronda_id, investigador_id, tipo_convocatoria, estado, created_at')
+    .eq('ronda_id', rondaId)
+    .order('created_at', { ascending: true });
+
+  if (convocatoriasError) throw convocatoriasError;
+
+  const investigatorIds = [...new Set((convocatorias ?? []).map(item => item.investigador_id).filter(Boolean))];
+  let investigators = [];
+  if (investigatorIds.length) {
+    const { data, error } = await supabase
+      .from('investigadores')
+      .select('id, nombre')
+      .in('id', investigatorIds);
+    if (error) throw error;
+    investigators = data ?? [];
+  }
+  const investigatorNames = new Map(investigators.map(item => [item.id, item.nombre]));
+
+  return {
+    ronda,
+    investigacion,
+    convocatorias: (convocatorias ?? []).map(item => ({
+      ...item,
+      investigador_nombre: investigatorNames.get(item.investigador_id) ?? 'Investigador desconocido'
+    }))
+  };
+}
+
 async function actionStartRound(supabase, body, actorId) {
 
   const participantIds = ids(body.participantes);
@@ -943,6 +1007,9 @@ export default async function handler(req, res) {
 
     let result;
     switch (body.action) {
+      case 'consultar_ronda_prueba':
+        result = await actionLoadStagingRound(supabase, body, humanIdentity);
+        break;
       case 'iniciar_ronda':
         result = await actionStartRound(supabase, body, humanIdentity);
         break;
