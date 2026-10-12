@@ -33,7 +33,8 @@ const SERVICE_INVESTIGATOR_ACTIONS = new Set([
   'obtener_convocatoria',
   'completar_convocatoria',
   'fallar_convocatoria',
-  'claim_convocation_dispatch'
+  'claim_convocation_dispatch',
+  'diagnosticar_conexion'
 ]);
 
 function json(res, status, body) {
@@ -212,6 +213,23 @@ async function actionClaimInvocationDispatch(supabase, body, serviceIdentity) {
 
   if (error) mapDispatchRpcError(error);
   return { dispatch: data };
+}
+
+async function actionDiagnoseServiceConnection(serviceIdentity) {
+  if (!serviceIdentity?.verified || !serviceIdentity?.serviceId || !serviceIdentity?.investigadorId) {
+    const unauthorized = new Error('Se requiere una firma de servicio válida para el diagnóstico.');
+    unauthorized.status = 401;
+    throw unauthorized;
+  }
+  // authenticateInvestigatorRequest has already verified Ed25519 and persisted this request's nonce.
+  // This diagnostic deliberately performs no dispatch claim or business-table write.
+  return {
+    diagnostic: 'signed_service_authentication',
+    authenticated: true,
+    nonce_recorded: true,
+    service_id: serviceIdentity.serviceId,
+    investigator_id: serviceIdentity.investigadorId
+  };
 }
 
 async function actionDispatchInvocation(supabase, body, actorId) {
@@ -1018,6 +1036,9 @@ export default async function handler(req, res) {
         break;
       case 'claim_convocation_dispatch':
         result = await actionClaimInvocationDispatch(supabase, body, serviceIdentity);
+        break;
+      case 'diagnosticar_conexion':
+        result = await actionDiagnoseServiceConnection(serviceIdentity);
         break;
       case 'despachar_convocatoria':
         result = await actionDispatchInvocation(supabase, body, humanIdentity);
