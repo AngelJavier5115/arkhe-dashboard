@@ -13,6 +13,7 @@ const core = read('api/arkhe-core.js');
 const signing = read('api/core-dispatch-signing.js');
 const migration = read('supabase/migrations/20261011053000_signed_invocation_dispatch.sql');
 const reconciliationMigration = read('supabase/migrations/20261012052000_reconcile_expired_unclaimed_dispatch.sql');
+const dispatchStateMigration = read('supabase/migrations/20261012053000_read_latest_invocation_dispatches_staging.sql');
 const panel = read('src/CoreGovernancePanel.jsx');
 const vercelConfig = JSON.parse(read('vercel.json'));
 
@@ -177,12 +178,21 @@ test('Expired unclaimed dispatches resolve to expired, never falsely revoked, af
   assert.match(reconciliationMigration, /Only the authenticated human governor may reconcile a dispatch/);
 });
 
+test('Persisted dispatch state is read through a staging-scoped server-only RPC', () => {
+  assert.match(core, /rpc\('arkhe_get_latest_invocation_dispatches'/);
+  assert.match(dispatchStateMigration, /ip\.codigo = 'A4-STAGE-001'/);
+  assert.match(dispatchStateMigration, /SECURITY DEFINER/);
+  assert.match(dispatchStateMigration, /REVOKE ALL ON FUNCTION public\.arkhe_get_latest_invocation_dispatches\(uuid\[\]\) FROM PUBLIC, anon, authenticated, service_role/);
+  assert.match(dispatchStateMigration, /GRANT EXECUTE ON FUNCTION public\.arkhe_get_latest_invocation_dispatches\(uuid\[\]\) TO service_role/);
+  assert.match(dispatchStateMigration, /cardinality\(p_convocatoria_ids\) > 100/);
+});
+
 test('Staging round recovery restores the latest persisted dispatch state rather than resetting to idle', () => {
   const start = core.indexOf('async function actionLoadStagingRound');
   const end = core.indexOf('async function actionStartRound', start);
   assert.ok(start >= 0 && end > start);
   const recovery = core.slice(start, end);
-  assert.match(recovery, /from\('core_invocation_dispatches'\)/);
+  assert.match(recovery, /rpc\('arkhe_get_latest_invocation_dispatches'/);
   assert.match(recovery, /latest_dispatch: latestDispatchByInvocation\.get\(item\.id\) \?\? null/);
   assert.match(panel, /const previous = item\.latest_dispatch \?\? null/);
   assert.match(panel, /dispatchState = 'ambiguous'/);
