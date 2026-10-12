@@ -14,6 +14,7 @@ const signing = read('api/core-dispatch-signing.js');
 const migration = read('supabase/migrations/20261011053000_signed_invocation_dispatch.sql');
 const reconciliationMigration = read('supabase/migrations/20261012052000_reconcile_expired_unclaimed_dispatch.sql');
 const dispatchStateMigration = read('supabase/migrations/20261012053000_read_latest_invocation_dispatches_staging.sql');
+const constraintMigration = read('supabase/migrations/20261012054000_allow_audited_expired_dispatch.sql');
 const panel = read('src/CoreGovernancePanel.jsx');
 const humanAuthPanel = read('src/HumanAuthPanel.jsx');
 const vercelConfig = JSON.parse(read('vercel.json'));
