@@ -12,6 +12,7 @@ const read = name => fs.readFileSync(new URL('../' + name, import.meta.url), 'ut
 const core = read('api/arkhe-core.js');
 const signing = read('api/core-dispatch-signing.js');
 const migration = read('supabase/migrations/20261011053000_signed_invocation_dispatch.sql');
+const vercelConfig = JSON.parse(read('vercel.json'));
 
 test('Core outbound dispatch signature binds service audience, dispatch ID and exact serialized body', () => {
   const pair = generateKeyPairSync('ed25519');
@@ -92,7 +93,8 @@ test('Only recent human governance can issue a dispatch; the target is derived f
   assert.match(action, /convocatoria\.convocada_por !== actorId/);
   assert.match(action, /convocatoria\.investigador_id/);
   assert.match(action, /arkhe_issue_invocation_dispatch/);
-  assert.match(action, /AbortSignal\.timeout\(7000\)/);
+  assert.match(action, /AbortSignal\.timeout\(20_000\)/);
+  assert.equal(vercelConfig.functions?.['api/arkhe-core.js']?.maxDuration, 30);
   assert.match(action, /No lo reintentes automáticamente/);
   assert.doesNotMatch(action, /body\.url|body\.target_url/);
 });
