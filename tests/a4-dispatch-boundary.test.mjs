@@ -97,6 +97,19 @@ test('Only recent human governance can issue a dispatch; the target is derived f
   assert.doesNotMatch(action, /body\.url|body\.target_url/);
 });
 
+test('Staging round recovery is read-only, human-governed, and scoped to A4-STAGE-001', () => {
+  const start = core.indexOf('async function actionLoadStagingRound');
+  const end = core.indexOf('async function actionStartRound', start);
+  assert.ok(start >= 0 && end > start, 'staging round recovery handler must exist');
+  const action = core.slice(start, end);
+  assert.match(action, /actorId !== ANGEL_ID/);
+  assert.match(action, /investigacion\.codigo !== 'A4-STAGE-001'/);
+  assert.match(action, /from\('convocatorias_ronda'\)/);
+  assert.doesNotMatch(action, /\.insert\(|\.update\(|\.delete\(/);
+  assert.match(core, /case 'consultar_ronda_prueba':[\s\S]*?actionLoadStagingRound\(supabase, body, humanIdentity\)/);
+  assert.doesNotMatch(core.slice(core.indexOf('const SERVICE_INVESTIGATOR_ACTIONS'), core.indexOf(']);') + 3), /consultar_ronda_prueba/);
+});
+
 test('Processing, completion and failure require the exact claimed dispatch ID', () => {
   const getStart = core.indexOf('async function actionGetInvocation');
   const getEnd = core.indexOf('function raiseMappedCompletionError', getStart);
