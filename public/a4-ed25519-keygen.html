@@ -172,11 +172,6 @@ async function generateKeys() {
         publicKeyPem:pemOneLine('PUBLIC KEY',publicDer)
       });
     }
-    const bundle={
-      warning:'SENSITIVE FILE: contains private Ed25519 keys. Never upload or send this file. Delete it securely after configuration.',
-      format:'arkhe-a4-ed25519-key-bundle-v1',
-      keyPairs:pairs
-    };
     const bundleText=[
       'ARKHÉ A.4 — PAQUETE SENSIBLE DE CLAVES ED25519. NO COMPARTIR.',
       'Configura cada clave privada solo en la variable secreta y el entorno indicados. Borra este archivo de forma segura al terminar.',
