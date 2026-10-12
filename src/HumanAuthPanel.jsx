@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { startAuthentication, startRegistration } from '@simplewebauthn/browser';
+import { startAuthentication, startRegistration, WebAuthnAbortService } from '@simplewebauthn/browser';
 import CoreGovernancePanel from './CoreGovernancePanel';
 import { KeyRound, LogIn, LogOut, ShieldCheck, ShieldAlert } from 'lucide-react';
 
@@ -36,6 +36,34 @@ async function jsonFetch(path, init = {}) {
 
   if (!response.ok) throw new Error(body.error ?? 'La operación no pudo completarse.');
   return body;
+}
+
+const WEBAUTHN_CEREMONY_TIMEOUT_MS = 60000;
+
+async function withWebAuthnCeremonyTimeout(ceremonyPromise, description) {
+  let timeoutId;
+  const timeoutPromise = new Promise((_, reject) => {
+    timeoutId = setTimeout(() => {
+      // SimpleWebAuthn owns the AbortController used by navigator.credentials.get/create.
+      // Starting a fresh signal aborts the browser ceremony that has stalled.
+      try {
+        WebAuthnAbortService.createNewAbortSignal();
+      } catch {
+        // The visible timeout still releases the UI if the browser cannot cancel it.
+      }
+      const error = new Error(
+        description + ' con passkey no terminó en 60 segundos. Se solicitó cancelar el intento para liberar el panel. Comprueba el estado antes de volver a intentarlo.'
+      );
+      error.webauthnTimedOut = true;
+      reject(error);
+    }, WEBAUTHN_CEREMONY_TIMEOUT_MS);
+  });
+
+  try {
+    return await Promise.race([ceremonyPromise, timeoutPromise]);
+  } finally {
+    clearTimeout(timeoutId);
+  }
 }
 
 export default function HumanAuthPanel() {
@@ -88,7 +116,10 @@ export default function HumanAuthPanel() {
     try {
       const options = await jsonFetch('/api/auth/webauthn/options', { method: 'POST' });
       setProgress('Confirma tu identidad con Face ID para continuar…');
-      const response = await startAuthentication({ optionsJSON: options });
+      const response = await withWebAuthnCeremonyTimeout(
+        startAuthentication({ optionsJSON: options }),
+        'La autenticación'
+      );
       setProgress('Face ID confirmado. Verificando la respuesta y la sesión…');
       await jsonFetch('/api/auth/webauthn/verify', {
         method: 'POST',
@@ -115,7 +146,10 @@ export default function HumanAuthPanel() {
         headers: bootstrapSecret ? { 'x-arkhe-bootstrap': bootstrapSecret } : undefined,
       });
       setProgress('Confirma el registro de la passkey con Face ID…');
-      const response = await startRegistration({ optionsJSON: options });
+      const response = await withWebAuthnCeremonyTimeout(
+        startRegistration({ optionsJSON: options }),
+        'El registro'
+      );
       setProgress('Face ID confirmado. Verificando y guardando la nueva passkey…');
       const result = await jsonFetch('/api/auth/webauthn/register-verify', {
         method: 'POST',
