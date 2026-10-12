@@ -107,7 +107,10 @@ test('Staging round recovery is read-only, human-governed, and scoped to A4-STAG
   assert.match(action, /from\('convocatorias_ronda'\)/);
   assert.doesNotMatch(action, /\.insert\(|\.update\(|\.delete\(/);
   assert.match(core, /case 'consultar_ronda_prueba':[\s\S]*?actionLoadStagingRound\(supabase, body, humanIdentity\)/);
-  assert.doesNotMatch(core.slice(core.indexOf('const SERVICE_INVESTIGATOR_ACTIONS'), core.indexOf(']);') + 3), /consultar_ronda_prueba/);
+  const serviceActionsStart = core.indexOf('const SERVICE_INVESTIGATOR_ACTIONS');
+  const serviceActionsEnd = core.indexOf(']);', serviceActionsStart) + 3;
+  assert.ok(serviceActionsStart >= 0 && serviceActionsEnd > serviceActionsStart, 'service actions allowlist must exist');
+  assert.doesNotMatch(core.slice(serviceActionsStart, serviceActionsEnd), /consultar_ronda_prueba/);
 });
 
 test('Processing, completion and failure require the exact claimed dispatch ID', () => {
