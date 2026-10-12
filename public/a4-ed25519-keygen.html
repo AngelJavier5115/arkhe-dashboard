@@ -77,7 +77,7 @@ function bytesToBase64(buffer) {
 }
 function pemOneLine(label, buffer) {
   const base64 = bytesToBase64(buffer);
-  return '-----BEGIN ' + label + '-----\\n' + base64 + '\\n-----END ' + label + '-----\\n';
+  return '-----BEGIN ' + label + '-----\n' + base64 + '\n-----END ' + label + '-----\n';
 }
 function addButton(parent,text,fn,cls='secondary') {
   const b=document.createElement('button');
@@ -177,12 +177,25 @@ async function generateKeys() {
       format:'arkhe-a4-ed25519-key-bundle-v1',
       keyPairs:pairs
     };
-    const bundleText=JSON.stringify(bundle,null,2);
-    const blob=new Blob([bundleText],{type:'application/json;charset=utf-8'});
+    const bundleText=[
+      'ARKHÉ A.4 — PAQUETE SENSIBLE DE CLAVES ED25519. NO COMPARTIR.',
+      'Configura cada clave privada solo en la variable secreta y el entorno indicados. Borra este archivo de forma segura al terminar.',
+      ...pairs.map(pair=>[
+        '================================================================',
+        pair.title,
+        'Variable privada: '+pair.privateVariable,
+        'Entorno privado: '+pair.privateEnvironment,
+        pair.privateKeyPem,
+        'Variable pública: '+pair.publicVariable,
+        'Entorno público: '+pair.publicEnvironment,
+        pair.publicKeyPem
+      ].join('\\n'))
+    ].join('\\n\\n');
+    const blob=new Blob([bundleText],{type:'text/plain;charset=utf-8'});
     const url=URL.createObjectURL(blob);
     const a=document.createElement('a');
     a.href=url;
-    a.download='arkhe-a4-private-keys-KEEP-PRIVATE.json';
+    a.download='arkhe-a4-KEYS-KEEP-PRIVATE.txt';
     a.rel='noopener';
     document.body.appendChild(a);
     a.click();
