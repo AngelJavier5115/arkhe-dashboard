@@ -40,6 +40,7 @@ async function jsonFetch(path, init = {}) {
 
 export default function HumanAuthPanel() {
   const [authenticated, setAuthenticated] = useState(false);
+  const [sessionLoading, setSessionLoading] = useState(true);
   const [expiresAt, setExpiresAt] = useState(null);
   const [reauthenticatedAt, setReauthenticatedAt] = useState(null);
   const [credentials, setCredentials] = useState([]);
@@ -67,10 +68,17 @@ export default function HumanAuthPanel() {
   };
 
   useEffect(() => {
+    let mounted = true;
     refreshSession().catch(() => {
+      if (!mounted) return;
       setAuthenticated(false);
       setCredentials([]);
+    }).finally(() => {
+      if (mounted) setSessionLoading(false);
     });
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   const login = async () => {
@@ -187,7 +195,13 @@ export default function HumanAuthPanel() {
         </span>
       </div>
 
-      {!authenticated && (
+      {sessionLoading && (
+        <div role="status" aria-live="polite" className="mt-4 rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-3 text-xs text-slate-300">
+          Comprobando la sesión humana existente antes de mostrar las acciones de acceso…
+        </div>
+      )}
+
+      {!authenticated && !sessionLoading && (
         <div className="mt-4 grid gap-2 sm:grid-cols-[1fr_auto]">
           <input
             type="password"
