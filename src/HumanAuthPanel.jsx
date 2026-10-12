@@ -46,20 +46,24 @@ export default function HumanAuthPanel() {
   const [bootstrapSecret, setBootstrapSecret] = useState('');
   const [status, setStatus] = useState('');
   const [busy, setBusy] = useState(false);
+  const [progress, setProgress] = useState('');
 
   const refreshSession = async () => {
     const result = await jsonFetch('/api/auth/session');
     const isAuthenticated = Boolean(result.authenticated);
-    setAuthenticated(isAuthenticated);
-    setExpiresAt(result.expires_at ?? null);
-    setReauthenticatedAt(result.reauthenticated_at ?? null);
 
+    // Fetch the dependent credential list before exposing the authenticated panel.
+    // This keeps Face ID completion, session validation, and page transition in order.
+    let nextCredentials = [];
     if (isAuthenticated) {
       const listed = await jsonFetch('/api/auth/webauthn/credentials');
-      setCredentials(Array.isArray(listed.credentials) ? listed.credentials : []);
-    } else {
-      setCredentials([]);
+      nextCredentials = Array.isArray(listed.credentials) ? listed.credentials : [];
     }
+
+    setCredentials(nextCredentials);
+    setExpiresAt(result.expires_at ?? null);
+    setReauthenticatedAt(result.reauthenticated_at ?? null);
+    setAuthenticated(isAuthenticated);
   };
 
   useEffect(() => {
@@ -71,32 +75,40 @@ export default function HumanAuthPanel() {
 
   const login = async () => {
     setBusy(true);
+    setProgress('Preparando la autenticación con passkey…');
     setStatus('');
     try {
       const options = await jsonFetch('/api/auth/webauthn/options', { method: 'POST' });
+      setProgress('Confirma tu identidad con Face ID para continuar…');
       const response = await startAuthentication({ optionsJSON: options });
+      setProgress('Face ID confirmado. Verificando la respuesta y la sesión…');
       await jsonFetch('/api/auth/webauthn/verify', {
         method: 'POST',
         body: JSON.stringify(response),
       });
+      setProgress('Sesión verificada. Cargando credenciales y Gobierno humano…');
       await refreshSession();
-      setStatus('Sesión humana verificada. La reautenticación es válida durante diez minutos.');
+      setStatus('Sesión humana verificada. No se ha registrado una passkey nueva; la reautenticación es válida durante diez minutos.');
     } catch (error) {
       setStatus(error?.message ?? 'No fue posible autenticar la sesión.');
     } finally {
+      setProgress('');
       setBusy(false);
     }
   };
 
   const register = async () => {
     setBusy(true);
+    setProgress('Preparando el registro de passkey…');
     setStatus('');
     try {
       const options = await jsonFetch('/api/auth/webauthn/register-options', {
         method: 'POST',
         headers: bootstrapSecret ? { 'x-arkhe-bootstrap': bootstrapSecret } : undefined,
       });
+      setProgress('Confirma el registro de la passkey con Face ID…');
       const response = await startRegistration({ optionsJSON: options });
+      setProgress('Face ID confirmado. Verificando y guardando la nueva passkey…');
       const result = await jsonFetch('/api/auth/webauthn/register-verify', {
         method: 'POST',
         headers: bootstrapSecret ? { 'x-arkhe-bootstrap': bootstrapSecret } : undefined,
@@ -106,10 +118,12 @@ export default function HumanAuthPanel() {
       setStatus(result.bootstrap
         ? 'Passkey principal registrada. Autentica con ella para continuar con la credencial de recuperación.'
         : 'Passkey adicional registrada correctamente.');
+      setProgress('Passkey guardada. Actualizando el estado de la sesión…');
       await refreshSession();
     } catch (error) {
       setStatus(error?.message ?? 'No fue posible registrar la passkey.');
     } finally {
+      setProgress('');
       setBusy(false);
     }
   };
@@ -300,7 +314,12 @@ export default function HumanAuthPanel() {
         </div>
       )}
 
-      {status && <p role="status" className="mt-3 text-xs text-slate-400">{status}</p>}
+      {busy && progress && (
+        <p role="status" aria-live="polite" className="mt-3 rounded-lg border border-indigo-900/70 bg-indigo-950/30 px-3 py-2 text-xs text-indigo-200">
+          {progress}
+        </p>
+      )}
+      {status && <p role="status" aria-live="polite" className="mt-3 text-xs text-slate-400">{status}</p>}
     </section>
   );
 }
