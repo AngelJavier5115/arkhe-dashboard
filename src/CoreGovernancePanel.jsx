@@ -212,20 +212,41 @@ export default function CoreGovernancePanel({ authenticated, reauthenticatedAt }
       });
       const items = Array.isArray(loaded.convocatorias) ? loaded.convocatorias : [];
       setRound(loaded.ronda);
-      setInvocations(items.map(item => ({
-        ...item,
-        investigatorName: item.investigador_nombre ?? INVESTIGATORS.find(person => person.id === item.investigador_id)?.name ?? 'Investigador desconocido',
-        dispatchState: 'idle',
-        dispatchId: null,
-        dispatchMessage: null,
-        dispatchAt: null,
-        reconcileNote: '',
-        confirmRuntimeChecked: false,
-        reconciliationUnknown: false,
-      })));
+      setInvocations(items.map(item => {
+        const previous = item.latest_dispatch ?? null;
+        const previousStatus = previous?.status ?? null;
+        let dispatchState = 'idle';
+        let dispatchMessage = null;
+        if (previous) {
+          if (previousStatus === 'revoked') {
+            dispatchState = 'revoked';
+            dispatchMessage = 'El registro de Core confirma que el despacho anterior fue revocado manualmente. No se reintentó durante la recuperación.';
+          } else if (previousStatus === 'expired' && previous.reconciliation_note) {
+            dispatchState = 'expired';
+            dispatchMessage = 'El despacho anterior vencido y nunca reclamado quedó resuelto con nota de auditoría. No se creó una intervención.';
+          } else if (['issued', 'claimed', 'expired'].includes(previousStatus)) {
+            dispatchState = 'ambiguous';
+            dispatchMessage = 'Core conserva un despacho previo en estado "' + previousStatus + '". No se autoriza un reintento automático; revisa logs y reconcilia el registro antes de continuar.';
+          } else {
+            dispatchState = 'ambiguous';
+            dispatchMessage = 'Existe un registro de despacho previo que requiere revisión humana antes de continuar.';
+          }
+        }
+        return {
+          ...item,
+          investigatorName: item.investigador_nombre ?? INVESTIGATORS.find(person => person.id === item.investigador_id)?.name ?? 'Investigador desconocido',
+          dispatchState,
+          dispatchId: previous?.dispatch_id ?? null,
+          dispatchMessage,
+          dispatchAt: previous ? Date.parse(previous.claimed_at ?? previous.issued_at) : null,
+          reconcileNote: '',
+          confirmRuntimeChecked: false,
+          reconciliationUnknown: false,
+        };
+      }));
       setStatus({
         kind: 'success',
-        message: 'Ronda sintética recuperada desde Supabase. No se ha enviado ningún despacho. Revisa la convocatoria y el estado del servicio antes de autorizar un envío.',
+        message: 'Ronda sintética recuperada desde Supabase junto con el estado persistido de cada despacho. La recuperación no creó ni envió nada.',
       });
     } catch (error) {
       setStatus({
@@ -318,19 +339,25 @@ export default function CoreGovernancePanel({ authenticated, reauthenticatedAt }
         dispatch_id: invocation.dispatchId,
         reconciliation_note: note,
       });
+      const resolvedStatus = result?.dispatch?.status;
+      const resolved = ['revoked', 'expired'].includes(resolvedStatus);
       updateInvocation(invocation.id, {
-        dispatchState: result?.dispatch?.status === 'revoked' ? 'revoked' : 'reconciliation-unknown',
-        dispatchMessage: result?.dispatch?.status === 'revoked'
-          ? 'El despacho anterior fue revocado. No se ha reintentado ni creado una intervención.'
-          : 'El Core no confirmó la revocación; inspecciona el estado antes de continuar.',
-        reconciliationUnknown: result?.dispatch?.status !== 'revoked',
+        dispatchState: resolvedStatus === 'revoked' ? 'revoked' : resolvedStatus === 'expired' ? 'expired' : 'reconciliation-unknown',
+        dispatchMessage: resolvedStatus === 'revoked'
+          ? 'El despacho reclamado fue revocado con autorización humana. No se reintentó ni creó una intervención.'
+          : resolvedStatus === 'expired'
+            ? 'El despacho vencido no fue reclamado. Core lo marcó como expirado y guardó la nota de auditoría; no se creó una intervención.'
+            : 'Core no confirmó una resolución del despacho; inspecciona el estado antes de continuar.',
+        reconciliationUnknown: !resolved,
         confirmRuntimeChecked: false,
       });
       setStatus({
-        kind: result?.dispatch?.status === 'revoked' ? 'success' : 'warning',
-        message: result?.dispatch?.status === 'revoked'
-          ? 'Despacho revocado por autorización humana. Puedes evaluar un nuevo despacho como una acción separada después de revisar la convocatoria.'
-          : 'No hay confirmación suficiente de la reconciliación. No repitas la operación automáticamente.',
+        kind: resolved ? 'success' : 'warning',
+        message: resolvedStatus === 'revoked'
+          ? 'Despacho reclamado revocado por autorización humana. Puedes evaluar un nuevo despacho como acción separada después de revisar la convocatoria.'
+          : resolvedStatus === 'expired'
+            ? 'Despacho vencido y no reclamado resuelto. Puedes evaluar un nuevo despacho como acción humana separada después de despertar Atlas Preview.'
+            : 'No hay confirmación suficiente de la reconciliación. No repitas la operación automáticamente.',
       });
     } catch (error) {
       const unknown = Boolean(error?.networkAmbiguous);
@@ -525,7 +552,7 @@ export default function CoreGovernancePanel({ authenticated, reauthenticatedAt }
           String(invocation.reconcileNote ?? '').trim().length >= 10 &&
           String(invocation.reconcileNote ?? '').trim().length <= 500 &&
           !invocation.reconciliationUnknown;
-        const canDispatch = ['idle', 'revoked', 'failed-before-issue'].includes(invocation.dispatchState);
+        const canDispatch = ['idle', 'revoked', 'expired', 'failed-before-issue'].includes(invocation.dispatchState);
 
         return (
           <div key={invocation.id} className="rounded-lg border border-slate-800 bg-slate-900/70 p-3 space-y-3">
@@ -540,7 +567,7 @@ export default function CoreGovernancePanel({ authenticated, reauthenticatedAt }
             {invocation.dispatchMessage && (
               <div className={
                 "rounded-md border p-2 text-xs " +
-                (invocation.dispatchState === 'accepted' || invocation.dispatchState === 'revoked'
+                (invocation.dispatchState === 'accepted' || invocation.dispatchState === 'revoked' || invocation.dispatchState === 'expired'
                   ? "border-emerald-900/70 bg-emerald-950/20 text-emerald-200"
                   : "border-amber-900/70 bg-amber-950/20 text-amber-200")
               }>
@@ -559,7 +586,7 @@ export default function CoreGovernancePanel({ authenticated, reauthenticatedAt }
                 className="inline-flex items-center justify-center gap-2 rounded-lg border border-indigo-700 bg-indigo-950/50 px-3 py-2 text-xs font-medium text-indigo-100 hover:border-indigo-500 disabled:opacity-45"
               >
                 <PlayCircle className="h-4 w-4" />
-                {dispatchBusy ? 'Despachando…' : invocation.dispatchState === 'revoked' ? 'Autorizar un nuevo despacho' : 'Despachar convocatoria'}
+                {dispatchBusy ? 'Despachando…' : ['revoked', 'expired'].includes(invocation.dispatchState) ? 'Autorizar un nuevo despacho' : 'Despachar convocatoria'}
               </button>
             )}
 
@@ -570,7 +597,7 @@ export default function CoreGovernancePanel({ authenticated, reauthenticatedAt }
                   Reconciliación manual de un despacho
                 </div>
                 <p className="text-[11px] leading-relaxed text-slate-400">
-                  Sólo después de revisar los logs/runtime y el estado de la convocatoria. La API rechaza la reconciliación si la ejecución es demasiado reciente, si ya hay una intervención o si la convocatoria dejó de estar pendiente. El tiempo mínimo se cuenta desde la respuesta de despacho de esta pantalla.
+                  Sólo después de revisar logs/runtime y el estado de la convocatoria. Si el despacho venció sin ser reclamado, Core lo marcará como expirado; si fue reclamado, sólo podrá revocarse tras cinco minutos y sin intervenciones. Nunca se resuelve una ejecución que aún deba conservarse.
                 </p>
                 <label className="flex items-start gap-2 text-xs text-slate-300">
                   <input
@@ -590,7 +617,7 @@ export default function CoreGovernancePanel({ authenticated, reauthenticatedAt }
                     disabled={busy !== '' || !waitElapsed || invocation.reconciliationUnknown}
                     rows={2}
                     maxLength={500}
-                    placeholder="Qué se comprobó y por qué debe revocarse el despacho."
+                    placeholder="Qué se comprobó y por qué corresponde marcarlo expirado o revocarlo."
                     className="mt-1 w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-indigo-500 disabled:opacity-50"
                   />
                 </label>
@@ -611,7 +638,7 @@ export default function CoreGovernancePanel({ authenticated, reauthenticatedAt }
                   className="inline-flex items-center gap-2 rounded-lg border border-amber-800 bg-amber-950/30 px-3 py-2 text-xs font-medium text-amber-100 hover:border-amber-600 disabled:opacity-40"
                 >
                   <AlertTriangle className="h-4 w-4" />
-                  {reconcileBusy ? 'Reconciliando…' : 'Revisar y revocar despacho anterior'}
+                  {reconcileBusy ? 'Reconciliando…' : 'Revisar y resolver despacho anterior'}
                 </button>
               </div>
             )}
