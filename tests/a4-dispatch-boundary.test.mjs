@@ -15,6 +15,7 @@ const migration = read('supabase/migrations/20261011053000_signed_invocation_dis
 const reconciliationMigration = read('supabase/migrations/20261012052000_reconcile_expired_unclaimed_dispatch.sql');
 const dispatchStateMigration = read('supabase/migrations/20261012053000_read_latest_invocation_dispatches_staging.sql');
 const panel = read('src/CoreGovernancePanel.jsx');
+const humanAuthPanel = read('src/HumanAuthPanel.jsx');
 const vercelConfig = JSON.parse(read('vercel.json'));
 
 test('Core outbound dispatch signature binds service audience, dispatch ID and exact serialized body', () => {
@@ -152,6 +153,17 @@ test('Processing, completion and failure require the exact claimed dispatch ID',
   const failure = core.slice(failStart, failEnd);
   assert.match(failure, /arkhe_fail_invocation_atomically/);
   assert.match(failure, /p_dispatch_id: dispatchId/);
+});
+
+test('Browser auth and Core requests time out and release loading state instead of spinning forever', () => {
+  assert.match(panel, /CORE_REQUEST_TIMEOUT_MS = 15000/);
+  assert.match(panel, /setTimeout\(\(\) => controller\.abort\(\), CORE_REQUEST_TIMEOUT_MS\)/);
+  assert.match(panel, /finally \{\s*clearTimeout\(timeoutId\);\s*\}/);
+  assert.match(panel, /error\.networkAmbiguous = !readOnly/);
+  assert.match(humanAuthPanel, /AUTH_REQUEST_TIMEOUT_MS = 15000/);
+  assert.match(humanAuthPanel, /setTimeout\(\(\) => controller\.abort\(\), AUTH_REQUEST_TIMEOUT_MS\)/);
+  assert.match(humanAuthPanel, /Actualiza la página y comprueba la sesión y las passkeys antes de repetir/);
+  assert.match(humanAuthPanel, /finally \{\s*clearTimeout\(timeoutId\);\s*\}/);
 });
 
 test('Human reconciliation is recent-WebAuthn-only and explicitly requires an audit note', () => {
