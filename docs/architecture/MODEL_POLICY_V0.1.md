@@ -116,6 +116,21 @@ La comparación debe permitir distinguir dos variables: efecto del tamaño/model
 
 El repositorio `arkhe-tlacuilo-runner` registra que Atlas Preview carecía de motor configurado y que el dispatch anterior quedó `revoked`, con cero intervenciones; la convocatoria correspondiente sigue en `error`. Ese estado es histórico de seguridad: no se debe reactivar ni repetir durante esta fase.
 
+
+### Candidatos iniciales para evaluar en Tekton (no aprobados)
+
+El objetivo de la siguiente etapa es comprobar si existe una alternativa mejor para la función arquitectónica de Tekton sin asumir que el nombre del modelo o los benchmarks del proveedor prueban superioridad en Arkhé. Se compararán con el código/modelo Groq actual como línea base y sólo con entradas sintéticas.
+
+| Candidato | Evidencia publicada relevante | Costo/acceso publicado | Consideraciones antes de elegir |
+|---|---|---|---|
+| **DeepSeek V4.1 Flash** (`deepseek-flash`) | Su API admite el formato Responses que ya invoca Tekton. Publica una ventana de contexto de 1M tokens y soporte para razonamiento, herramientas y salida estructurada según la documentación. | API de bajo costo pero no se debe asumir gratis: tarifa publicada por millón de tokens varía entre horas pico y valle. | La integración parece de menor fricción porque usa el mismo formato de API; todavía hay que validar parámetros, errores, privacidad y resultados reales en pruebas sintéticas. |
+| **Mistral Small 4** (`mistral-small-2603`) | Modelo híbrido de instrucciones, razonamiento y código, con contexto publicado de 256K tokens. | Mistral ofrece modo Free con límites; su disponibilidad concreta y cuota para este modelo deben confirmarse en la cuenta antes de contar con él como opción gratuita. El precio publicado de pago por uso es bajo. | La ficha consultada destaca Chat Completions, no confirma compatibilidad completa con la ruta Responses utilizada por Tekton; puede necesitar un adaptador o ajuste específico que deberá probarse en una rama aislada. |
+| **Groq actual como referencia** (`openai/gpt-oss-20b`) | El código de `tekton-bot/main` invoca Responses API con esfuerzo de razonamiento `medium`. Groq publica soporte del modelo para razonamiento, código, herramientas y salidas estructuradas. | Es la línea base de costo bajo; tarifa y cuotas pueden cambiar y deben verificarse antes de estimar gasto. | No se da por descartado hasta que un benchmark sintético demuestre una mejora suficiente de calidad, confiabilidad o costo total. |
+
+Fuentes oficiales consultadas para preparar este shortlist: [DeepSeek Models & Pricing](https://api-docs.deepseek.com/quick_start/pricing/?push_animated=1&show_loading=0&theme=light&webview_progress_bar=1), [DeepSeek Responses API](https://api-docs.deepseek.com/guides/responses_api/), [Mistral Small 4](https://docs.mistral.ai/models/mistral-small-4-0-26-03), [Mistral Free mode y límites](https://docs.mistral.ai/getting-started/quickstarts/studio/activate-and-generate-api-key), [Groq modelos soportados](https://console.groq.com/docs/models).
+
+Esta lista es una **hipótesis de evaluación, no una selección de modelo ni autorización de cambio**. Los precios, modelos disponibles y cuotas deberán revalidarse en el momento de la prueba.
+
 ## 9. Adaptador común como objetivo de arquitectura
 
 El objetivo es que cada investigador invoque una interfaz estable y que el adaptador traduzca la solicitud al proveedor o runtime seleccionado. La identidad y el prompt del investigador deben permanecer fuera del adaptador específico del proveedor.
@@ -180,8 +195,9 @@ Las pruebas no deben llamar a endpoints de convocatoria, no deben escribir en Su
 4. Definir el contrato del adaptador común y un registro de configuración en formato documental, sin migrar base de datos todavía.
 5. Añadir pruebas unitarias de resolución de modelo, fallback autorizado, procedencia y error; sin convocatorias reales.
 6. Ejecutar benchmarks sintéticos y presentar resultados a Ángel.
-7. Sólo después de aprobación explícita, implementar una primera integración aislada en una rama, comenzando por un investigador y sin tocar `main` ni producción.
-8. Evaluar la ruta local como adaptador adicional, no como sustitución de identidad.
+7. Presentar a Ángel el informe de benchmark y la propuesta de proveedor/modelo/costo antes de elegir el sustituto de Groq para Tekton.
+8. Sólo después de aprobación explícita, implementar una primera integración aislada en una rama, comenzando por Tekton y sin tocar `main` ni producción.
+9. Mantener el trabajo local fuera del alcance inmediato; reconsiderarlo cuando exista infraestructura apropiada.
 
 ## 13. Criterios de aceptación de v0.1
 
