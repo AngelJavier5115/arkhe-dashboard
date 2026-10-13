@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - audit/a4-human-auth
+      - feature/investigation-preflight-v0.1
       - security/a4-idempotent-completion
   pull_request:
     branches:
