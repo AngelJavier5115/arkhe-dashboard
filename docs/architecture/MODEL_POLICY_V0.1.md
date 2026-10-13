@@ -114,7 +114,7 @@ Fuentes oficiales consultadas el 2026-10-12:
 
 La comparación debe permitir distinguir dos variables: efecto del tamaño/modelo manteniendo Groq, y efecto de cambiar de proveedor/modelo con DeepSeek. Una diferencia observada no se atribuirá únicamente al proveedor cuando el modelo también haya cambiado.
 
-El repositorio `arkhe-tlacuilo-runner` registra que Atlas Preview carecía de motor configurado y que el dispatch anterior quedó `revoked), con cero intervenciones; la convocatoria correspondiente sigue en `error`. Ese estado es histórico de seguridad: no se debe reactivar ni repetir durante esta fase.
+El repositorio `arkhe-tlacuilo-runner` registra que Atlas Preview carecía de motor configurado y que el dispatch anterior quedó `revoked`, con cero intervenciones; la convocatoria correspondiente sigue en `error`. Ese estado es histórico de seguridad: no se debe reactivar ni repetir durante esta fase.
 
 ## 9. Adaptador común como objetivo de arquitectura
 
