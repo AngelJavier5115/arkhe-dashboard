@@ -123,6 +123,19 @@ test('Core routes preflight only through the human identity boundary and the act
   assert.doesNotMatch(core.slice(allowlistStart, allowlistEnd), /preflight_investigacion/);
 });
 
+test('Round creation revalidates active investigation and active investigator profiles server-side', () => {
+  const start = core.indexOf('async function actionStartRound');
+  const invocations = core.indexOf('async function actionCreateInvocations');
+  const end = core.indexOf('async function actionReconcileInvocationDispatch', invocations);
+  assert.ok(start >= 0 && invocations > start && end > invocations, 'round and invocation actions must exist');
+  const startAction = core.slice(start, invocations);
+  const invocationAction = core.slice(invocations, end);
+  assert.match(startAction, /investigacion\.estado !== 'activa'/);
+  assert.match(startAction, /await assertActiveInvestigatorProfiles\(supabase, participantIds\)/);
+  assert.match(invocationAction, /await assertActiveInvestigatorProfiles\(supabase, participantIds\)/);
+  assert.match(core, /async function assertActiveInvestigatorProfiles\(supabase, participantIds\)/);
+});
+
 test('Dashboard requires a fresh preflight for the exact current form before round creation', () => {
   assert.match(panel, /READ_ONLY_CORE_ACTIONS = new Set\(\['consultar_ronda_prueba', 'preflight_investigacion'\]\)/);
   assert.match(panel, /setPreflightSnapshot\(\{ fingerprint, report \}\)/);

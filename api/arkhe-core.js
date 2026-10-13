@@ -365,6 +365,26 @@ async function assertParticipants(supabase, investigacionId, participantIds) {
   }
 }
 
+async function assertActiveInvestigatorProfiles(supabase, participantIds) {
+  const { data, error } = await supabase
+    .from('perfiles_investigadores')
+    .select('investigador_id')
+    .eq('activo', true)
+    .in('investigador_id', participantIds);
+
+  if (error) throw error;
+
+  const active = new Set((data ?? []).map(row => row.investigador_id));
+  const missing = participantIds.filter(id => !active.has(id));
+  if (missing.length) {
+    const conflict = new Error(
+      'Investigadores sin perfil identitario activo: ' + missing.join(', ')
+    );
+    conflict.status = 409;
+    throw conflict;
+  }
+}
+
 async function loadRoundContext(supabase, rondaId) {
   const { data: ronda, error: rondaError } = await supabase
     .from('rondas_investigacion')
@@ -595,10 +615,16 @@ async function actionStartRound(supabase, body, actorId) {
 
   if (invError) throw invError;
   if (!investigacion) throw new Error('Investigación no encontrada.');
+  if (investigacion.estado !== 'activa') {
+    const conflict = new Error('La investigación no está activa y no puede recibir una ronda nueva.');
+    conflict.status = 409;
+    throw conflict;
+  }
 
   const investigacionId = investigacion.id;
 
   await assertParticipants(supabase, investigacionId, participantIds);
+  await assertActiveInvestigatorProfiles(supabase, participantIds);
 
   const { data: numeroData, error: numeroError } = await supabase
     .rpc('arkhe_siguiente_numero_ronda', { p_investigacion_id: investigacionId });
@@ -675,6 +701,7 @@ async function actionCreateInvocations(supabase, body, actorId) {
   }
 
   await assertParticipants(supabase, context.ronda.investigacion_id, participantIds);
+  await assertActiveInvestigatorProfiles(supabase, participantIds);
 
   const invocations = participantIds.map(investigadorId => ({
     ronda_id: rondaId,
