@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, CheckCircle2, Clock3, PlayCircle, ShieldCheck, Users } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, ClipboardCheck, Clock3, PlayCircle, ShieldCheck, Users } from 'lucide-react';
 
 const INVESTIGATORS = [
   { id: '6deb143d-17c4-4d1a-a2d2-1fd9ddf2853f', name: 'Atlas' },
@@ -19,7 +19,7 @@ const ROUND_TYPES = [
 const RECONCILIATION_WAIT_MS = 5 * 60 * 1000;
 
 const CORE_REQUEST_TIMEOUT_MS = 15000;
-const READ_ONLY_CORE_ACTIONS = new Set(['consultar_ronda_prueba']);
+const READ_ONLY_CORE_ACTIONS = new Set(['consultar_ronda_prueba', 'preflight_investigacion']);
 
 async function coreAction(payload) {
   const controller = new AbortController();
@@ -85,6 +85,17 @@ export default function CoreGovernancePanel({ authenticated, reauthenticatedAt }
   const [status, setStatus] = useState(null);
   const [roundCreationUncertain, setRoundCreationUncertain] = useState(false);
   const [roundLookupId, setRoundLookupId] = useState('47aa67e6-8e04-40d8-828c-1e43ce4f44fa');
+  const [preflightSnapshot, setPreflightSnapshot] = useState(null);
+  const preflightFingerprint = JSON.stringify({
+    investigationCode: investigationCode.trim(),
+    question: question.trim(),
+    roundType,
+    nodeId: nodeId.trim(),
+    participants: [...selected].sort(),
+  });
+  const activePreflight = preflightSnapshot?.fingerprint === preflightFingerprint
+    ? preflightSnapshot.report
+    : null;
 
   const recentReauth = useMemo(
     () => hasRecentWebAuthn(reauthenticatedAt),
@@ -113,9 +124,84 @@ export default function CoreGovernancePanel({ authenticated, reauthenticatedAt }
     return true;
   };
 
+  const runInvestigationPreflight = async () => {
+    if (!requireRecentAuth()) return;
+    if (round || roundCreationUncertain || busy !== '') {
+      setStatus({
+        kind: 'warning',
+        message: 'Valida la preparación antes de crear una ronda. No se ejecutó ninguna operación porque el estado del formulario no está limpio.',
+      });
+      return;
+    }
+    if (!question.trim() || question.trim().length > 4000) {
+      setStatus({ kind: 'error', message: 'Escribe una pregunta de entre 1 y 4000 caracteres.' });
+      return;
+    }
+    if (!investigationCode.trim()) {
+      setStatus({ kind: 'error', message: 'El código de investigación es obligatorio.' });
+      return;
+    }
+    if (selected.length === 0) {
+      setStatus({ kind: 'error', message: 'Selecciona al menos un investigador.' });
+      return;
+    }
+    if (nodeId && (!Number.isSafeInteger(Number(nodeId)) || Number(nodeId) <= 0)) {
+      setStatus({ kind: 'error', message: 'El ID del nodo debe ser un entero positivo.' });
+      return;
+    }
+
+    const fingerprint = preflightFingerprint;
+    setBusy('preflight');
+    setStatus(null);
+    setPreflightSnapshot(null);
+    try {
+      const payload = {
+        action: 'preflight_investigacion',
+        investigacion_codigo: investigationCode.trim(),
+        tipo: roundType,
+        pregunta: question.trim(),
+        participantes: selected,
+      };
+      if (nodeId) payload.nodo_id = Number(nodeId);
+
+      const report = await coreAction(payload);
+      setPreflightSnapshot({ fingerprint, report });
+      if (!report?.ready_to_start) {
+        setStatus({
+          kind: 'warning',
+          message: 'La validación encontró bloqueos. Resuelve los puntos señalados y vuelve a ejecutar el preflight; no se creó ninguna ronda ni convocatoria.',
+        });
+      } else if (report.status === 'warning') {
+        setStatus({
+          kind: 'warning',
+          message: 'La preparación pasó con advertencias. Revisa las rondas existentes antes de decidir si continúas.',
+        });
+      } else {
+        setStatus({
+          kind: 'success',
+          message: 'La preparación pasó. No se creó ninguna ronda, convocatoria o despacho. La creación seguirá requiriendo una acción humana explícita.',
+        });
+      }
+    } catch (error) {
+      setStatus({
+        kind: 'error',
+        message: error?.message ?? 'No fue posible validar la preparación.',
+      });
+    } finally {
+      setBusy('');
+    }
+  };
+
   const createRoundAndInvocations = async event => {
     event.preventDefault();
     if (!requireRecentAuth()) return;
+    if (!activePreflight?.ready_to_start) {
+      setStatus({
+        kind: 'warning',
+        message: 'Antes de crear la ronda, ejecuta el preflight de solo lectura con esta configuración exacta. Si cambias la investigación, pregunta, tipo, nodo o participantes, la validación anterior deja de ser válida.',
+      });
+      return;
+    }
     if (round || roundCreationUncertain) {
       setStatus({
         kind: 'warning',
@@ -528,9 +614,83 @@ export default function CoreGovernancePanel({ authenticated, reauthenticatedAt }
           </div>
         </div>
 
+        <div className="space-y-2">
+          <button
+            type="button"
+            onClick={runInvestigationPreflight}
+            disabled={!recentReauth || busy !== '' || Boolean(round) || roundCreationUncertain}
+            className="inline-flex items-center justify-center gap-2 rounded-lg border border-indigo-700 bg-indigo-950/40 px-4 py-2.5 text-xs font-semibold text-indigo-100 hover:border-indigo-500 disabled:cursor-not-allowed disabled:opacity-45"
+          >
+            <ClipboardCheck className="h-4 w-4" />
+            {busy === 'preflight' ? 'Validando preparación…' : 'Validar preparación (solo lectura)'}
+          </button>
+          <p className="text-[11px] leading-relaxed text-slate-500">
+            Comprueba la investigación, las participaciones, los perfiles y el nodo ancla opcional. Esta consulta no crea rondas ni convocatorias, no despacha investigadores y no reserva estado.
+          </p>
+        </div>
+
+        {activePreflight && (
+          <div className="space-y-3 rounded-lg border border-slate-800 bg-slate-900/50 p-3" role="status" aria-live="polite">
+            <div className="flex items-start gap-2">
+              {activePreflight.status === 'blocked'
+                ? <AlertTriangle className="mt-0.5 h-4 w-4 text-rose-300" />
+                : activePreflight.status === 'warning'
+                  ? <AlertTriangle className="mt-0.5 h-4 w-4 text-amber-300" />
+                  : <CheckCircle2 className="mt-0.5 h-4 w-4 text-emerald-300" />}
+              <div className="min-w-0 flex-1">
+                <div className="text-xs font-semibold text-slate-200">
+                  Resultado del preflight: {activePreflight.status === 'blocked' ? 'bloqueado' : activePreflight.status === 'warning' ? 'aprobado con advertencias' : 'preparación verificada'}
+                </div>
+                <p className="mt-1 text-[11px] leading-relaxed text-slate-400">
+                  {activePreflight.investigation?.titulo || activePreflight.investigation?.codigo} · Efectos de negocio: {activePreflight.effects?.rounds_created ?? 0} rondas, {activePreflight.effects?.invitations_created ?? 0} convocatorias y {activePreflight.effects?.dispatches_sent ?? 0} despachos.
+                </p>
+              </div>
+            </div>
+            <ul className="space-y-1.5">
+              {(activePreflight.checks ?? []).map(check => (
+                <li key={check.id} className="flex items-start gap-2 text-[11px] leading-relaxed text-slate-300">
+                  {check.status === 'pass'
+                    ? <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-300" />
+                    : check.status === 'warning'
+                      ? <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-300" />
+                      : check.status === 'blocked'
+                        ? <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-rose-300" />
+                        : <Clock3 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-400" />}
+                  <span>{check.message}</span>
+                </li>
+              ))}
+            </ul>
+            <div className="space-y-1">
+              <div className="text-[11px] font-semibold text-slate-300">Investigadores seleccionados</div>
+              {(activePreflight.investigators ?? []).map(person => (
+                <div key={person.id} className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-400">
+                  <span>{person.nombre}</span>
+                  <span className={person.ready ? 'text-emerald-300' : 'text-rose-300'}>
+                    {person.participacion_activa ? 'participación activa' : 'sin participación activa'} · {person.perfil_activo ? 'perfil activo' : 'perfil no activo'}
+                  </span>
+                </div>
+              ))}
+            </div>
+            {activePreflight.open_rounds?.length > 0 && (
+              <div className="text-[11px] text-amber-200">
+                Rondas abiertas o pausadas encontradas: {activePreflight.open_rounds.length}. La decisión de continuar sigue siendo humana.
+              </div>
+            )}
+            <p className="text-[10px] leading-relaxed text-slate-500">
+              El informe refleja el estado leído ahora. Cualquier cambio en el formulario invalida esta validación; el Core también volverá a validar las reglas durante la creación.
+            </p>
+          </div>
+        )}
+
+        {preflightSnapshot && !activePreflight && (
+          <p className="text-[11px] text-amber-200" role="status">
+            La configuración cambió después del último preflight. Vuelve a validar antes de crear la ronda.
+          </p>
+        )}
+
         <button
           type="submit"
-          disabled={!recentReauth || busy !== '' || Boolean(round) || roundCreationUncertain}
+          disabled={!recentReauth || busy !== '' || Boolean(round) || roundCreationUncertain || !activePreflight?.ready_to_start}
           className="inline-flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-xs font-semibold text-white hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-45"
         >
           <PlayCircle className="h-4 w-4" />

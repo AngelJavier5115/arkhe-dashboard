@@ -4,6 +4,7 @@ import { createCoreDispatchEnvelope, resolveCoreDispatchTarget, CORE_DISPATCH_TA
 import { authenticateServiceRequest, expectedInvestigatorForService, MAX_CLOCK_SKEW_MS } from './service-auth.js';
 import { getAuthSupabase, getWebAuthnConfig, requireSameOrigin } from './human-auth-config.js';
 import { getHumanSession, isRecentReauthentication } from './human-session.js';
+import { ALLOWED_ROUND_TYPES, buildInvestigationPreflightReport, normalizeInvestigationPreflightInput } from './investigation-preflight.js';
 
 const ANGEL_ID = '2a003935-f248-442c-96fc-dcee29c4d41a';
 const INVESTIGATOR_IDS = {
@@ -13,14 +14,7 @@ const INVESTIGATOR_IDS = {
   tekton: '656726d1-8209-4240-8169-a7434074609d'
 };
 
-const allowedRoundTypes = new Set([
-  'consulta',
-  'debate',
-  'replica',
-  'confrontacion',
-  'aclaracion',
-  'cierre'
-]);
+const allowedRoundTypes = new Set(ALLOWED_ROUND_TYPES);
 
 const allowedInvocationTypes = new Set([
   'perspectiva',
@@ -494,6 +488,87 @@ async function actionLoadStagingRound(supabase, body, actorId) {
       latest_dispatch: latestDispatchByInvocation.get(item.id) ?? null
     }))
   };
+}
+
+async function actionPreflightInvestigation(supabase, body, actorId) {
+  if (actorId !== ANGEL_ID) {
+    const forbidden = new Error('Sólo el gobernador humano puede validar la preparación de una investigación.');
+    forbidden.status = 403;
+    throw forbidden;
+  }
+
+  const input = normalizeInvestigationPreflightInput(body);
+  let investigationQuery = supabase
+    .from('investigaciones_proyecto')
+    .select('id, codigo, titulo, objetivo, pregunta, descripcion, estado');
+
+  if (input.investigacion_id) {
+    investigationQuery = investigationQuery.eq('id', input.investigacion_id);
+  } else {
+    investigationQuery = investigationQuery.eq('codigo', input.investigacion_codigo);
+  }
+
+  const { data: investigation, error: investigationError } = await investigationQuery.maybeSingle();
+  if (investigationError) throw investigationError;
+  if (!investigation) {
+    const missing = new Error('No se encontró la investigación solicitada.');
+    missing.status = 404;
+    throw missing;
+  }
+
+  const participantIds = input.participantes;
+  const readResults = await Promise.all([
+    supabase
+      .from('participaciones')
+      .select('investigador_id, estado')
+      .eq('investigacion_id', investigation.id)
+      .in('investigador_id', participantIds),
+    supabase
+      .from('investigadores')
+      .select('id, nombre')
+      .in('id', participantIds),
+    supabase
+      .from('perfiles_investigadores')
+      .select('investigador_id, nombre_identitario, especialidad, activo, version')
+      .in('investigador_id', participantIds),
+    supabase
+      .from('rondas_investigacion')
+      .select('id, numero, tipo, estado, pregunta, created_at')
+      .eq('investigacion_id', investigation.id)
+      .in('estado', ['abierta', 'pausada'])
+      .order('created_at', { ascending: false }),
+    input.nodo_id === null
+      ? Promise.resolve({ data: null, error: null })
+      : supabase
+          .from('investigaciones')
+          .select('id, ref_id, tipo, estado')
+          .eq('id', input.nodo_id)
+          .maybeSingle(),
+    input.nodo_id === null
+      ? Promise.resolve({ data: null, error: null })
+      : supabase
+          .from('investigacion_nodos')
+          .select('investigacion_id')
+          .eq('investigacion_id', investigation.id)
+          .eq('nodo_id', input.nodo_id)
+          .maybeSingle(),
+  ]);
+
+  for (const result of readResults) {
+    if (result.error) throw result.error;
+  }
+
+  const [participations, investigators, profiles, openRounds, nodeResult, linkResult] = readResults;
+  return buildInvestigationPreflightReport({
+    input,
+    investigation,
+    participationRows: participations.data ?? [],
+    investigatorRows: investigators.data ?? [],
+    profileRows: profiles.data ?? [],
+    openRounds: openRounds.data ?? [],
+    node: nodeResult.data ?? null,
+    nodeLinked: Boolean(linkResult.data),
+  });
 }
 
 async function actionStartRound(supabase, body, actorId) {
@@ -1052,6 +1127,9 @@ export default async function handler(req, res) {
     switch (body.action) {
       case 'consultar_ronda_prueba':
         result = await actionLoadStagingRound(supabase, body, humanIdentity);
+        break;
+      case 'preflight_investigacion':
+        result = await actionPreflightInvestigation(supabase, body, humanIdentity);
         break;
       case 'iniciar_ronda':
         result = await actionStartRound(supabase, body, humanIdentity);
