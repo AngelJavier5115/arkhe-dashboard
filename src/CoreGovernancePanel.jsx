@@ -74,7 +74,7 @@ function dispatchIdFromMessage(message) {
 
 export default function CoreGovernancePanel({ authenticated, reauthenticatedAt }) {
   const [now, setNow] = useState(Date.now());
-  const [investigationCode, setInvestigationCode] = useState('AR-001');
+  const [investigationCode, setInvestigationCode] = useState('A4-STAGE-001');
   const [question, setQuestion] = useState('');
   const [roundType, setRoundType] = useState('consulta');
   const [nodeId, setNodeId] = useState('');
@@ -84,11 +84,26 @@ export default function CoreGovernancePanel({ authenticated, reauthenticatedAt }
   const [busy, setBusy] = useState('');
   const [status, setStatus] = useState(null);
   const [roundCreationUncertain, setRoundCreationUncertain] = useState(false);
+  const [preflightReport, setPreflightReport] = useState(null);
   const [roundLookupId, setRoundLookupId] = useState('47aa67e6-8e04-40d8-828c-1e43ce4f44fa');
 
   const recentReauth = useMemo(
     () => hasRecentWebAuthn(reauthenticatedAt),
     [reauthenticatedAt, now],
+  );
+
+  const currentPreflightKey = JSON.stringify({
+    investigacion_codigo: investigationCode.trim().toUpperCase(),
+    pregunta: question.trim(),
+    tipo: roundType,
+    participantes: [...selected].sort(),
+    nodo_id: nodeId ? String(Number(nodeId)) : null,
+  });
+  const preflightIsCurrent = Boolean(
+    preflightReport && preflightReport.inputKey === currentPreflightKey
+  );
+  const currentPreflightReady = Boolean(
+    preflightIsCurrent && preflightReport.report?.ready_to_create === true
   );
 
   useEffect(() => {
@@ -113,6 +128,88 @@ export default function CoreGovernancePanel({ authenticated, reauthenticatedAt }
     return true;
   };
 
+  const runRoundPreflight = async () => {
+    if (!requireRecentAuth()) return;
+    if (round || roundCreationUncertain || busy !== '') {
+      setStatus({
+        kind: 'warning',
+        message: 'Antes de revisar una nueva ronda, resuelve el estado del formulario actual. El preflight no recupera ni modifica una ronda previa.',
+      });
+      return;
+    }
+
+    const trimmedQuestion = question.trim();
+    if (!trimmedQuestion || trimmedQuestion.length > 4000) {
+      setStatus({ kind: 'error', message: 'Escribe una pregunta de entre 1 y 4000 caracteres.' });
+      return;
+    }
+    if (selected.length === 0) {
+      setStatus({ kind: 'error', message: 'Selecciona al menos un investigador.' });
+      return;
+    }
+    if (nodeId && (!Number.isSafeInteger(Number(nodeId)) || Number(nodeId) <= 0)) {
+      setStatus({ kind: 'error', message: 'El ID del nodo debe ser un entero positivo.' });
+      return;
+    }
+
+    const inputKey = currentPreflightKey;
+    setBusy('preflight');
+    setStatus(null);
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), CORE_REQUEST_TIMEOUT_MS);
+      let response;
+      let body;
+      try {
+        response = await fetch('/api/arkhe-round-preflight', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            investigacion_codigo: investigationCode.trim(),
+            pregunta: trimmedQuestion,
+            tipo: roundType,
+            participantes: selected,
+            ...(nodeId ? { nodo_id: Number(nodeId) } : {}),
+          }),
+          signal: controller.signal,
+        });
+        body = await response.json().catch(() => ({}));
+      } catch {
+        throw new Error(controller.signal.aborted
+          ? 'El preflight superó 15 segundos. No se creó ni modificó ninguna ronda; revisa la conexión antes de volver a consultarlo.'
+          : 'No hubo confirmación de red del preflight. No se creó ni modificó ninguna ronda; puedes consultar de nuevo el estado.');
+      } finally {
+        clearTimeout(timeoutId);
+      }
+
+      if (!response.ok || body?.ok !== true || !body?.preflight) {
+        const error = new Error(body?.error ?? 'Arkhé no devolvió un informe válido de preflight.');
+        error.status = response.status;
+        throw error;
+      }
+
+      setPreflightReport({ inputKey, report: body.preflight });
+      const hasWarnings = (body.preflight.checks ?? []).some(check => check.status === 'warning');
+      setStatus({
+        kind: body.preflight.ready_to_create ? (hasWarnings ? 'warning' : 'success') : 'warning',
+        message: body.preflight.ready_to_create
+          ? (hasWarnings
+            ? 'Preflight completado con advertencias. Revisa las rondas activas y los estados antes de decidir humanamente si continúas.'
+            : 'Preflight completado. La revisión es de sólo lectura y todavía no crea ninguna ronda ni convocatoria.')
+          : 'Preflight bloqueado. Corrige los puntos marcados antes de volver a revisarlo.',
+      });
+    } catch (error) {
+      setPreflightReport(null);
+      setStatus({
+        kind: 'error',
+        message: error?.message ?? 'No fue posible revisar la ronda.',
+      });
+    } finally {
+      setBusy('');
+    }
+  };
+
   const createRoundAndInvocations = async event => {
     event.preventDefault();
     if (!requireRecentAuth()) return;
@@ -120,6 +217,13 @@ export default function CoreGovernancePanel({ authenticated, reauthenticatedAt }
       setStatus({
         kind: 'warning',
         message: 'Ya se intentó crear una ronda en este formulario. No la crees de nuevo a ciegas: primero inspecciona el Core y confirma si existen la ronda y sus convocatorias.',
+      });
+      return;
+    }
+    if (!currentPreflightReady) {
+      setStatus({
+        kind: 'warning',
+        message: 'Antes de crear, ejecuta un preflight válido para los datos actuales y revisa todas las advertencias. Cualquier cambio en la pregunta, tipo, participantes o nodo invalida el informe anterior.',
       });
       return;
     }
@@ -529,8 +633,79 @@ export default function CoreGovernancePanel({ authenticated, reauthenticatedAt }
         </div>
 
         <button
-          type="submit"
+          type="button"
+          onClick={runRoundPreflight}
           disabled={!recentReauth || busy !== '' || Boolean(round) || roundCreationUncertain}
+          className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-cyan-800 bg-cyan-950/30 px-4 py-2.5 text-xs font-semibold text-cyan-100 hover:border-cyan-600 disabled:cursor-not-allowed disabled:opacity-45"
+        >
+          <CheckCircle2 className="h-4 w-4" />
+          {busy === 'preflight' ? 'Revisando investigación…' : 'Revisar antes de crear'}
+        </button>
+
+        {preflightReport && (
+          <div className="space-y-3 rounded-lg border border-slate-800 bg-slate-900/60 p-3">
+            {!preflightIsCurrent ? (
+              <div role="status" className="rounded-md border border-amber-900/70 bg-amber-950/20 p-3 text-xs text-amber-200">
+                El informe anterior ya no corresponde a los datos actuales. Vuelve a ejecutar el preflight; no se permite crear con un informe obsoleto.
+              </div>
+            ) : (
+              <>
+                <div className={
+                  "rounded-md border p-3 text-xs " +
+                  (preflightReport.report.ready_to_create
+                    ? "border-emerald-900/70 bg-emerald-950/20 text-emerald-200"
+                    : "border-rose-900/70 bg-rose-950/20 text-rose-200")
+                }>
+                  <div className="font-semibold">
+                    {preflightReport.report.ready_to_create
+                      ? 'Preflight completado · revisión humana pendiente'
+                      : 'Preflight bloqueado'}
+                  </div>
+                  <p className="mt-1 leading-relaxed">
+                    Investigación sintética: {preflightReport.report.investigation?.code}. La información se consultó sin crear rondas, convocatorias, despachos, intervenciones ni relaciones semánticas.
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  {(preflightReport.report.checks ?? []).map(check => (
+                    <div key={check.key} className="flex items-start gap-2 text-xs">
+                      {check.status === 'passed'
+                        ? <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" />
+                        : check.status === 'warning'
+                          ? <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-300" />
+                          : <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-rose-400" />}
+                      <div className="min-w-0">
+                        <div className="font-medium text-slate-200">{check.label}</div>
+                        <div className="mt-0.5 leading-relaxed text-slate-400">{check.detail}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {(preflightReport.report.active_rounds ?? []).length > 0 && (
+                  <div className="rounded-md border border-amber-900/60 bg-amber-950/10 p-3">
+                    <div className="text-xs font-semibold text-amber-200">Rondas ya abiertas o pausadas</div>
+                    <ul className="mt-2 space-y-1">
+                      {preflightReport.report.active_rounds.map(activeRound => (
+                        <li key={activeRound.id} className="text-xs text-slate-300">
+                          Ronda #{activeRound.numero} · {activeRound.tipo} · {activeRound.estado} · {formatDate(activeRound.created_at, true)}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                <p className="text-[11px] leading-relaxed text-slate-500">
+                  El preflight es una ayuda de revisión, no una autorización ni un bloqueo de seguridad del servidor. La creación sigue necesitando la sesión WebAuthn reciente; no se envían convocatorias ni se despachan investigadores automáticamente.
+                </p>
+              </>
+            )}
+          </div>
+        )}
+
+        <button
+          type="submit"
+          disabled={!recentReauth || busy !== '' || Boolean(round) || roundCreationUncertain || !currentPreflightReady}
           className="inline-flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-xs font-semibold text-white hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-45"
         >
           <PlayCircle className="h-4 w-4" />
