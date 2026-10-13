@@ -14,7 +14,7 @@ Esta política es una base v0.1, no una arquitectura definitiva. Los modelos y p
 ## 2. Decisiones rectoras aprobadas
 
 1. **Selección económica:** priorizar modelos gratuitos o de bajo costo, siempre que cumplan el mínimo de calidad y fiabilidad de la tarea. Los costos no autorizados quedan prohibidos.
-2. **Migración local:** priorizar privacidad, control de datos, memoria y entorno de ejecución. La ejecución local no implica que herramientas, APIs o repositorios conectados sean locales; cada salida remota se evalúa por separado.
+2. **Migración local como dirección futura, no como fase actual:** priorizar privacidad, control de datos, memoria y entorno de ejecución cuando exista infraestructura capaz de alojarla. Hoy no se dispone de una infraestructura local apropiada para producción, por lo que no se intentará forzar esta migración ni se tratará como requisito de la v0.1. La ejecución local futura tampoco implica que herramientas, APIs o repositorios conectados sean locales; cada salida remota se evalúa por separado.
 3. **Gobierno de cambios:** los investigadores pueden comparar modelos y proponer cambios con evidencia. Ángel aprueba los cambios de modelo/configuración autorizada. Ningún agente puede autoaprobarse un motor, proveedor, gasto o permiso.
 4. **Sin convocatorias reales durante pruebas:** pruebas de configuración y benchmarks deben usar casos sintéticos/offline. No crear rondas, convocatorias ni despachos reales; no reintentar el dispatch revocado ni alterar la convocatoria que permanece en estado `error`.
 
@@ -95,6 +95,25 @@ Revisión de `main` realizada el 2026-10-12. Los hallazgos describen el código 
 
 Los tres repositorios de bots tienen `main` y ramas de trabajo/seguridad; esta revisión no fusionó ramas ni cambió código. El Dashboard también mantiene ramas de auditoría y seguridad abiertas. Antes de cualquier implementación se deben revisar los PRs y sus diferencias más recientes para evitar pisar trabajo en curso.
 
+### 8.1. Decisión operativa inmediata sobre motores
+
+Durante la fase actual se mantienen las familias de proveedores existentes: Atlas conserva la integración OpenAI-compatible que ya tiene (el código prioriza OpenRouter cuando existe `OPENROUTER_API_KEY`, por lo que no debe asumirse que cada llamada va directamente a OpenAI); Aletheia conserva Google Gemini; Tekton conserva Groq hasta completar una comparación sintética. No se migrará ningún servicio ni se cambiarán credenciales como resultado de este borrador.
+
+La evaluación de Tekton comparará como mínimo estos candidatos, sin declarar de antemano un ganador:
+
+1. **Línea base:** Groq `openai/gpt-oss-20b`, el modelo configurado actualmente. El catálogo oficial muestra USD 0.075 por millón de tokens de entrada y USD 0.30 por millón de salida, contexto de 131,072 tokens y velocidad indicada de aproximadamente 1,000 tokens/segundo.
+2. **Control dentro del mismo proveedor:** Groq `openai/gpt-oss-120b`. Permite explorar si un modelo mayor mejora tareas de arquitectura/código sin cambiar de proveedor; el catálogo consultado muestra USD 0.15 por millón de entrada y USD 0.60 por millón de salida, contexto de 131,072 tokens.
+3. **Candidato de otro proveedor:** API directa de DeepSeek usando `deepseek-flash`, que la documentación identifica con la versión DeepSeek-V4.1-Flash. Publica contexto de 1 millón de tokens y tarifas pico de USD 0.30/M entrada y USD 1.20/M salida, con tarifas fuera de pico de USD 0.15/M y USD 0.60/M respectivamente. La API es compatible con el formato de OpenAI, pero requiere evaluación de calidad, precio final, latencia y contrato de datos antes de aprobarla.
+
+Fuentes oficiales consultadas el 2026-10-12:
+- [Modelos y precios de Groq](https://console.groq.com/docs/models)
+- [Modelos y precios de DeepSeek API](https://api-docs.deepseek.com/quick_start/pricing/)
+- [Política de privacidad de DeepSeek](https://cdn.deepseek.com/policies/en-US/deepseek-privacy-policy.html)
+
+**Condición de privacidad para DeepSeek:** la política de privacidad consultada indica que los datos pueden procesarse y almacenarse en servidores en la República Popular China. Por tanto, cualquier prueba inicial con este proveedor queda limitada a prompts, código de ejemplo y fixtures sintéticos sin datos privados, memorias sensibles, claves ni contenido confidencial de Arkhé. Su candidatura no constituye aprobación para uso con información real.
+
+La comparación debe permitir distinguir dos variables: efecto del tamaño/modelo manteniendo Groq, y efecto de cambiar de proveedor/modelo con DeepSeek. Una diferencia observada no se atribuirá únicamente al proveedor cuando el modelo también haya cambiado.
+
 El repositorio `arkhe-tlacuilo-runner` registra que Atlas Preview carecía de motor configurado y que el dispatch anterior quedó `revoked), con cero intervenciones; la convocatoria correspondiente sigue en `error`. Ese estado es histórico de seguridad: no se debe reactivar ni repetir durante esta fase.
 
 ## 9. Adaptador común como objetivo de arquitectura
@@ -111,19 +130,32 @@ La interfaz debe separar al menos:
 
 La primera entrega debe ser documental y de pruebas unitarias/sintéticas. No se refactorizan los tres bots en el mismo cambio. Cada adaptación futura tendrá su rama, CI, comparación de comportamiento y revisión humana independiente.
 
-## 10. Privacidad y migración local
+## 10. Prioridad operativa actual y migración local futura
 
-La migración debe avanzar por etapas:
+### Fase actual: servicios en la nube
 
-1. **Inventario de datos:** identificar qué contenido se envía a cada proveedor y qué se conserva.
-2. **Separación de secretos y configuración:** no exponer claves ni valores de entorno; comprobar únicamente presencia/ausencia y estado seguro.
-3. **Pruebas sintéticas:** comparar resultados sin usar convocatorias reales ni datos sensibles.
-4. **Runtime local experimental:** conectar un modelo local detrás de la misma interfaz, sin asumir que por ser local tiene calidad o capacidades equivalentes.
-5. **Herramientas remotas:** documentar cada conexión externa, permisos, datos transmitidos y confirmaciones humanas. Un MCP remoto o una API externa sigue siendo una salida de datos.
-6. **Migración controlada:** comparar resultados, conservar procedencia, planificar reversión y obtener aprobación de Ángel.
+Arkhé seguirá usando los servicios en la nube ya conectados: la integración OpenAI-compatible de Atlas y Google Gemini para Aletheia se mantienen; Tekton permanece en Groq mientras evaluamos alternativas. La selección futura de un modelo diferente para Tekton requiere benchmark sintético, revisión de privacidad y aprobación explícita de Ángel.
 
-La ejecución local en un iPhone con recursos limitados se considera laboratorio de experimentación, no infraestructura de producción. La arquitectura debe poder trasladarse en el futuro a un servidor local sin cambiar la identidad de los investigadores.
+Antes de una aprobación:
+- no cambiar variables, credenciales, servicios o configuración activa;
+- no enviar contenido privado de Arkhé a un candidato no aprobado;
+- no habilitar gasto sin límite definido y aprobación humana;
+- no crear ni ejecutar convocatorias reales para probar modelos;
+- verificar proveedor, almacenamiento, retención, uso para entrenamiento y región de procesamiento a partir de documentación vigente.
 
+### Fase futura: infraestructura local
+
+La ejecución local es una meta futura, no un requisito de la política v0.1 ni una tarea inmediata. Se abordará cuando exista hardware/infraestructura suficiente para el nivel de calidad y disponibilidad que requiera Arkhé.
+
+Cuando llegue esa fase:
+1. inventariar los datos y memoria que necesita cada investigador;
+2. definir requisitos mínimos de privacidad, capacidad, fiabilidad y costo de operación;
+3. colocar el runtime local detrás del mismo adaptador de inferencia;
+4. evaluar un modelo local con casos sintéticos frente a la línea base en la nube;
+5. documentar las herramientas que seguirán siendo remotas: un modelo local no vuelve locales GitHub, Discord, MCP remotos ni APIs;
+6. obtener aprobación de Ángel antes de migrar, redirigir datos o cambiar servicios.
+
+El objetivo es que la transición futura a un servidor local no cambie la identidad de los investigadores ni sus permisos. El teléfono con recursos limitados puede servir para experimentación, pero no se considera infraestructura de producción.
 ## 11. Plan de evaluación sintética
 
 Crear un conjunto pequeño, versionado y reproducible de casos sintéticos por rol. Cada candidato se evalúa con los mismos criterios, pero con rúbricas propias del rol:
