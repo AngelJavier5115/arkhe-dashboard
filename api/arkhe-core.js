@@ -1,4 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
+import { createHash, randomUUID } from 'node:crypto';
+import { createCoreDispatchEnvelope, resolveCoreDispatchTarget, CORE_DISPATCH_TARGETS } from './core-dispatch-signing.js';
 import { authenticateServiceRequest, expectedInvestigatorForService, MAX_CLOCK_SKEW_MS } from './service-auth.js';
 import { getAuthSupabase, getWebAuthnConfig, requireSameOrigin } from './human-auth-config.js';
 import { getHumanSession, isRecentReauthentication } from './human-session.js';
@@ -30,7 +32,9 @@ const allowedInvocationTypes = new Set([
 const SERVICE_INVESTIGATOR_ACTIONS = new Set([
   'obtener_convocatoria',
   'completar_convocatoria',
-  'fallar_convocatoria'
+  'fallar_convocatoria',
+  'claim_convocation_dispatch',
+  'diagnosticar_conexion'
 ]);
 
 function json(res, status, body) {
@@ -39,9 +43,11 @@ function json(res, status, body) {
 
 function getSupabase() {
   const url = process.env.VITE_SUPABASE_URL;
-  const key = process.env.VITE_SUPABASE_KEY;
-  if (!url || !key) throw new Error('Faltan VITE_SUPABASE_URL o VITE_SUPABASE_KEY.');
-  return createClient(url, key);
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) throw new Error('Faltan VITE_SUPABASE_URL o SUPABASE_SERVICE_ROLE_KEY.');
+  return createClient(url, key, {
+    auth: { persistSession: false, autoRefreshToken: false }
+  });
 }
 
 function requireCoreToken(req) {
@@ -86,6 +92,17 @@ function assertBodyActorMatches(body, actorId) {
 function uuid(value, field) {
   if (!value || typeof value !== 'string') {
     throw new Error(field + ' es obligatorio.');
+  }
+  return value;
+}
+
+function requireUuidShape(value, field, { optional = false } = {}) {
+  if ((value === undefined || value === null || value === '') && optional) return null;
+  if (typeof value !== 'string' ||
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)) {
+    const invalid = new Error(field + ' debe ser un UUID válido.');
+    invalid.status = 400;
+    throw invalid;
   }
   return value;
 }
@@ -163,6 +180,174 @@ function requireBoundInvestigator(serviceIdentity) {
   return serviceIdentity.investigadorId;
 }
 
+function mapDispatchRpcError(error) {
+  const mapped = {
+    '23505': [409, 'El despacho ya fue reclamado o existe otro despacho activo; no reintentes automáticamente.'],
+    'P0001': [409, 'El despacho o la convocatoria no está disponible; reconcilia antes de repetir.'],
+    'P0002': [404, 'No se encontró la convocatoria o el despacho firmado.'],
+    '42501': [403, 'La identidad autenticada no está autorizada para este despacho.'],
+    '22023': [400, 'Los parámetros del despacho no son válidos.']
+  };
+  const [status, message] = mapped[error?.code] ?? [500, error?.message ?? 'Falló la operación de despacho.'];
+  const mappedError = new Error(message);
+  mappedError.status = status;
+  throw mappedError;
+}
+
+async function actionClaimInvocationDispatch(supabase, body, serviceIdentity) {
+  const investigadorId = requireBoundInvestigator(serviceIdentity);
+  const convocatoriaId = requireUuidShape(body.convocatoria_id, 'convocatoria_id');
+  const dispatchId = requireUuidShape(body.dispatch_id, 'dispatch_id');
+
+  if (body.investigador_id && body.investigador_id !== investigadorId) {
+    const forbidden = new Error('El investigador declarado no coincide con la identidad del servicio.');
+    forbidden.status = 403;
+    throw forbidden;
+  }
+
+  const { data, error } = await supabase.rpc('arkhe_claim_invocation_dispatch', {
+    p_dispatch_id: dispatchId,
+    p_convocatoria_id: convocatoriaId,
+    p_investigador_id: investigadorId
+  });
+
+  if (error) mapDispatchRpcError(error);
+  return { dispatch: data };
+}
+
+async function actionDiagnoseServiceConnection(serviceIdentity) {
+  if (!serviceIdentity?.verified || !serviceIdentity?.serviceId || !serviceIdentity?.investigadorId) {
+    const unauthorized = new Error('Se requiere una firma de servicio válida para el diagnóstico.');
+    unauthorized.status = 401;
+    throw unauthorized;
+  }
+  // authenticateInvestigatorRequest has already verified Ed25519 and persisted this request's nonce.
+  // This diagnostic deliberately performs no dispatch claim or business-table write.
+  return {
+    diagnostic: 'signed_service_authentication',
+    authenticated: true,
+    nonce_recorded: true,
+    service_id: serviceIdentity.serviceId,
+    investigator_id: serviceIdentity.investigadorId
+  };
+}
+
+async function actionDispatchInvocation(supabase, body, actorId) {
+  if (actorId !== ANGEL_ID) {
+    const forbidden = new Error('Sólo Ángel puede autorizar el despacho de convocatorias.');
+    forbidden.status = 403;
+    throw forbidden;
+  }
+
+  const convocatoriaId = requireUuidShape(body.convocatoria_id, 'convocatoria_id');
+  const { data: convocatoria, error: convocatoriaError } = await supabase
+    .from('convocatorias_ronda')
+    .select('id, ronda_id, convocada_por, investigador_id, tipo_convocatoria, estado, created_at')
+    .eq('id', convocatoriaId)
+    .maybeSingle();
+
+  if (convocatoriaError) throw convocatoriaError;
+  if (!convocatoria) {
+    const missing = new Error('Convocatoria no encontrada.');
+    missing.status = 404;
+    throw missing;
+  }
+  if (convocatoria.convocada_por !== actorId) {
+    const forbidden = new Error('La convocatoria no fue creada por el gobernador humano autenticado.');
+    forbidden.status = 403;
+    throw forbidden;
+  }
+  if (!['enviada', 'pendiente'].includes(convocatoria.estado)) {
+    const conflict = new Error('La convocatoria no está disponible para despacho.');
+    conflict.status = 409;
+    throw conflict;
+  }
+
+  const targetEntry = Object.entries(CORE_DISPATCH_TARGETS)
+    .find(([, value]) => value.investigadorId === convocatoria.investigador_id);
+  if (!targetEntry) {
+    const invalid = new Error('La convocatoria no corresponde a un investigador de servicio permitido.');
+    invalid.status = 400;
+    throw invalid;
+  }
+
+  const [serviceId] = targetEntry;
+  const target = resolveCoreDispatchTarget(serviceId);
+  const envelope = createCoreDispatchEnvelope({
+    serviceId,
+    convocatoriaId,
+    endpointUrl: target.url
+  });
+
+  // Persist the one-shot dispatch before contacting the bot. A network timeout
+  // is ambiguous, so the dispatch is never retried automatically by this API.
+  const { error: issueError } = await supabase.rpc('arkhe_issue_invocation_dispatch', {
+    p_dispatch_id: envelope.dispatchId,
+    p_convocatoria_id: convocatoriaId,
+    p_investigador_id: target.investigadorId,
+    p_actor_id: actorId,
+    p_expires_at: envelope.expiresAt
+  });
+  if (issueError) mapDispatchRpcError(issueError);
+
+  let response;
+  let responseBody;
+  try {
+    response = await fetch(envelope.url, {
+      method: 'POST',
+      headers: envelope.headers,
+      body: envelope.serializedBody,
+      // Render Preview cold starts can take longer than the previous 7s window.
+      // Stay within the Vercel function maxDuration configured in vercel.json.
+      signal: AbortSignal.timeout(20_000)
+    });
+    try {
+      responseBody = await response.json();
+    } catch {
+      responseBody = null;
+    }
+  } catch (transportError) {
+    // Structured and intentionally allow-listed diagnostics: never log keys, signatures or request bodies.
+    console.error('[Arkhe Core] Dispatch transport did not confirm', JSON.stringify({
+      dispatchId: envelope.dispatchId,
+      serviceId,
+      errorName: typeof transportError?.name === 'string' ? transportError.name : null,
+      errorCode: typeof transportError?.code === 'string' ? transportError.code : null,
+      timeoutMs: 20_000
+    }));
+    const ambiguous = new Error(
+      'El despacho ' + envelope.dispatchId +
+      ' no tuvo confirmación de red. No lo reintentes automáticamente; reconcilia el estado tras revisar la convocatoria.'
+    );
+    ambiguous.status = 502;
+    throw ambiguous;
+  }
+
+  if (
+    response.status !== 202 ||
+    responseBody?.ok !== true ||
+    responseBody?.accepted !== true ||
+    responseBody?.dispatch_id !== envelope.dispatchId
+  ) {
+    const ambiguous = new Error(
+      'El despacho ' + envelope.dispatchId + ' no fue confirmado como aceptado (HTTP ' +
+      response.status + '). No lo reintentes automáticamente; revisa el registro de despacho y la convocatoria.'
+    );
+    ambiguous.status = 502;
+    throw ambiguous;
+  }
+
+  return {
+    accepted: true,
+    dispatch_id: envelope.dispatchId,
+    investigador_id: target.investigadorId,
+    service_id: serviceId,
+    convocatoria_id: convocatoriaId,
+    expires_at: envelope.expiresAt
+  };
+}
+
+
 async function assertParticipants(supabase, investigacionId, participantIds) {
   const { data, error } = await supabase
     .from('participaciones')
@@ -229,6 +414,85 @@ async function loadRoundContext(supabase, rondaId) {
     investigacion,
     foco_intervencion: foco,
     intervenciones: intervenciones ?? []
+  };
+}
+
+async function actionLoadStagingRound(supabase, body, actorId) {
+  if (actorId !== ANGEL_ID) {
+    const forbidden = new Error('Sólo el gobernador humano puede recuperar la ronda sintética.');
+    forbidden.status = 403;
+    throw forbidden;
+  }
+
+  const rondaId = requireUuidShape(body.ronda_id, 'ronda_id');
+  const { data: ronda, error: rondaError } = await supabase
+    .from('rondas_investigacion')
+    .select('id, numero, tipo, estado, pregunta, investigacion_id, created_at, updated_at')
+    .eq('id', rondaId)
+    .maybeSingle();
+
+  if (rondaError) throw rondaError;
+  if (!ronda) {
+    const missing = new Error('No se encontró la ronda solicitada.');
+    missing.status = 404;
+    throw missing;
+  }
+
+  const { data: investigacion, error: investigacionError } = await supabase
+    .from('investigaciones_proyecto')
+    .select('id, codigo, titulo, objetivo, pregunta, descripcion, estado')
+    .eq('id', ronda.investigacion_id)
+    .maybeSingle();
+
+  if (investigacionError) throw investigacionError;
+  if (!investigacion || investigacion.codigo !== 'A4-STAGE-001') {
+    const outsideScope = new Error('La recuperación está limitada a la investigación sintética A4-STAGE-001 de Preview.');
+    outsideScope.status = 404;
+    throw outsideScope;
+  }
+
+  const { data: convocatorias, error: convocatoriasError } = await supabase
+    .from('convocatorias_ronda')
+    .select('id, ronda_id, investigador_id, tipo_convocatoria, estado, created_at')
+    .eq('ronda_id', rondaId)
+    .order('created_at', { ascending: true });
+
+  if (convocatoriasError) throw convocatoriasError;
+
+  const investigatorIds = [...new Set((convocatorias ?? []).map(item => item.investigador_id).filter(Boolean))];
+  let investigators = [];
+  if (investigatorIds.length) {
+    const { data, error } = await supabase
+      .from('investigadores')
+      .select('id, nombre')
+      .in('id', investigatorIds);
+    if (error) throw error;
+    investigators = data ?? [];
+  }
+  const investigatorNames = new Map(investigators.map(item => [item.id, item.nombre]));
+
+  const invocationIds = (convocatorias ?? []).map(item => item.id);
+  let latestDispatches = [];
+  if (invocationIds.length) {
+    const { data, error } = await supabase.rpc('arkhe_get_latest_invocation_dispatches', {
+      p_convocatoria_ids: invocationIds
+    });
+    if (error) throw error;
+    latestDispatches = data ?? [];
+  }
+  const latestDispatchByInvocation = new Map();
+  for (const dispatch of latestDispatches) {
+    latestDispatchByInvocation.set(dispatch.convocatoria_id, dispatch);
+  }
+
+  return {
+    ronda,
+    investigacion,
+    convocatorias: (convocatorias ?? []).map(item => ({
+      ...item,
+      investigador_nombre: investigatorNames.get(item.investigador_id) ?? 'Investigador desconocido',
+      latest_dispatch: latestDispatchByInvocation.get(item.id) ?? null
+    }))
   };
 }
 
@@ -364,9 +628,57 @@ async function actionCreateInvocations(supabase, body, actorId) {
   };
 }
 
+async function actionReconcileInvocationDispatch(supabase, body, actorId) {
+  if (actorId !== ANGEL_ID) {
+    const forbidden = new Error('Sólo Ángel puede reconciliar un despacho.');
+    forbidden.status = 403;
+    throw forbidden;
+  }
+
+  const convocatoriaId = requireUuidShape(body.convocatoria_id, 'convocatoria_id');
+  const dispatchId = requireUuidShape(body.dispatch_id, 'dispatch_id');
+  const note = typeof body.reconciliation_note === 'string' ? body.reconciliation_note.trim() : '';
+
+  if (note.length < 10 || note.length > 500) {
+    const invalid = new Error('La nota de reconciliación debe tener entre 10 y 500 caracteres.');
+    invalid.status = 400;
+    throw invalid;
+  }
+
+  const { data, error } = await supabase.rpc('arkhe_reconcile_invocation_dispatch', {
+    p_dispatch_id: dispatchId,
+    p_convocatoria_id: convocatoriaId,
+    p_actor_id: actorId,
+    p_reconciliation_note: note
+  });
+
+  if (error) mapDispatchRpcError(error);
+  if (!['revoked', 'expired'].includes(data?.status)) {
+    const invalid = new Error('Arkhé Core no confirmó una resolución segura del despacho anterior.');
+    invalid.status = 502;
+    throw invalid;
+  }
+
+  return { dispatch: data, requires_new_human_dispatch: true };
+}
+
+
 async function actionGetInvocation(supabase, body, serviceIdentity) {
   const investigadorId = requireBoundInvestigator(serviceIdentity);
-  const convocatoriaId = uuid(body.convocatoria_id, 'convocatoria_id');
+  const convocatoriaId = requireUuidShape(body.convocatoria_id, 'convocatoria_id');
+  const dispatchId = requireUuidShape(body.dispatch_id, 'dispatch_id');
+
+  const { data: dispatch, error: dispatchError } = await supabase.rpc('arkhe_validate_invocation_dispatch', {
+    p_dispatch_id: dispatchId,
+    p_convocatoria_id: convocatoriaId,
+    p_investigador_id: investigadorId
+  });
+  if (dispatchError) mapDispatchRpcError(dispatchError);
+  if (dispatch?.status !== 'claimed') {
+    const invalid = new Error('La convocatoria no tiene un despacho vigente reclamado por este investigador.');
+    invalid.status = 409;
+    throw invalid;
+  }
 
   const { data: convocatoria, error } = await supabase
     .from('convocatorias_ronda')
@@ -418,10 +730,28 @@ async function actionGetInvocation(supabase, body, serviceIdentity) {
   };
 }
 
+function raiseMappedCompletionError(error) {
+  const mapped = {
+    '23505': [409, 'La convocatoria ya fue completada con otra carga o existe una intervención previa; requiere reconciliación manual. No reintentes automáticamente.'],
+    'P0001': [409, 'La convocatoria está en un estado que no permite completarla; requiere reconciliación manual.'],
+    'P0002': [404, 'Convocatoria no encontrada.'],
+    '42501': [403, 'La convocatoria no pertenece al investigador autenticado.'],
+    '22023': [400, 'La carga de intervención no cumple los requisitos de validación.'],
+    '40001': [409, 'La convocatoria cambió durante la operación; reconcilia su estado antes de repetir.']
+  }[error?.code];
+
+  if (!mapped) throw error;
+  const safe = new Error(mapped[1]);
+  safe.status = mapped[0];
+  safe.code = error.code;
+  throw safe;
+}
+
 async function actionCompleteInvocation(supabase, body, serviceIdentity) {
   const investigadorId = requireBoundInvestigator(serviceIdentity);
-  const rondaId = uuid(body.ronda_id, 'ronda_id');
-  const convocatoriaId = uuid(body.convocatoria_id, 'convocatoria_id');
+  const rondaId = requireUuidShape(body.ronda_id, 'ronda_id');
+  const convocatoriaId = requireUuidShape(body.convocatoria_id, 'convocatoria_id');
+  const dispatchId = requireUuidShape(body.dispatch_id, 'dispatch_id');
 
   if (body.investigador_id && body.investigador_id !== investigadorId) {
     const forbidden = new Error('El investigador declarado no coincide con la identidad del servicio.');
@@ -435,16 +765,67 @@ async function actionCompleteInvocation(supabase, body, serviceIdentity) {
     .eq('id', convocatoriaId)
     .single();
 
-  if (convocatoriaError) throw convocatoriaError;
-  if (!convocatoria) throw new Error('Convocatoria no encontrada.');
-  if (convocatoria.investigador_id !== investigadorId || convocatoria.ronda_id !== rondaId) {
-    throw new Error('La respuesta no coincide con la convocatoria.');
+  if (convocatoriaError) {
+    if (convocatoriaError.code === 'PGRST116') {
+      const missing = new Error('Convocatoria no encontrada.');
+      missing.status = 404;
+      throw missing;
+    }
+    throw convocatoriaError;
   }
-  if (!['enviada', 'pendiente'].includes(convocatoria.estado)) {
-    throw new Error('La convocatoria ya fue completada o cancelada.');
+  if (!convocatoria) {
+    const missing = new Error('Convocatoria no encontrada.');
+    missing.status = 404;
+    throw missing;
+  }
+  if (convocatoria.investigador_id !== investigadorId || convocatoria.ronda_id !== rondaId) {
+    const forbidden = new Error('La convocatoria no pertenece al investigador autenticado.');
+    forbidden.status = 403;
+    throw forbidden;
   }
 
+  // A completed invocation is deliberately allowed to reach the atomic RPC:
+  // the RPC returns the original intervention for an exact replay, but rejects
+  // a different payload. State checks belong inside the locked transaction.
   const incomingMetadata = body.metadata ?? {};
+  if (!incomingMetadata || typeof incomingMetadata !== 'object' || Array.isArray(incomingMetadata)) {
+    const invalid = new Error('metadata debe ser un objeto JSON.');
+    invalid.status = 400;
+    throw invalid;
+  }
+
+  const tipo = body.tipo ?? 'perspectiva';
+  if (typeof tipo !== 'string' || !tipo.trim() || tipo.trim().length > 80) {
+    const invalid = new Error('tipo debe ser un texto de entre 1 y 80 caracteres.');
+    invalid.status = 400;
+    throw invalid;
+  }
+
+  if (typeof body.contenido !== 'string' || !body.contenido.trim() || body.contenido.trim().length > 50000) {
+    const invalid = new Error('contenido debe contener entre 1 y 50000 caracteres.');
+    invalid.status = 400;
+    throw invalid;
+  }
+  const contenido = body.contenido.trim();
+
+  const respondeA = requireUuidShape(
+    body.responde_a_intervencion_id ?? convocatoria.foco_intervencion_id,
+    'responde_a_intervencion_id',
+    { optional: true }
+  );
+  let nodoId = body.nodo_id ?? null;
+  if (nodoId !== null) {
+    const validNodeShape = typeof nodoId === 'number'
+      ? Number.isSafeInteger(nodoId)
+      : typeof nodoId === 'string' && /^[0-9]+$/.test(nodoId);
+    if (!validNodeShape || !Number.isSafeInteger(Number(nodoId)) || Number(nodoId) <= 0) {
+      const invalid = new Error('nodo_id debe ser un entero positivo.');
+      invalid.status = 400;
+      throw invalid;
+    }
+    nodoId = Number(nodoId);
+  }
+
   const provenanceLevel = incomingMetadata.nivel_procedencia ?? null;
 
   if (provenanceLevel === 'provider-response-attested') {
@@ -466,49 +847,61 @@ async function actionCompleteInvocation(supabase, body, serviceIdentity) {
 
   const metadata = {
     ...incomingMetadata,
-    convocatoria_id: convocatoriaId,
     identidad_version: body.identidad_version ?? null,
     modelo: body.modelo ?? null,
     proveedor: body.proveedor ?? null,
-    servicio_autenticado: serviceIdentity.serviceId
+    servicio_autenticado: serviceIdentity.serviceId,
+    dispatch_id: dispatchId
   };
 
-  const { data: intervencion, error: intervencionError } = await supabase.rpc(
-    'arkhe_insert_intervencion_ronda',
-    {
-      p_ronda_id: rondaId,
-      p_investigador_id: investigadorId,
-      p_tipo: body.tipo ?? 'perspectiva',
-      p_contenido: body.contenido,
-      p_responde_a_intervencion_id:
-        body.responde_a_intervencion_id ?? convocatoria.foco_intervencion_id ?? null,
-      p_nodo_id: body.nodo_id ?? null,
-      p_metadata: metadata
-    }
-  );
+  // Fingerprint every persisted semantic field so an ambiguous retry is
+  // idempotent only when it repeats the same payload.
+  const fingerprintPayload = {
+    convocatoria_id: convocatoriaId,
+    ronda_id: rondaId,
+    investigador_id: investigadorId,
+    tipo,
+    contenido,
+    responde_a_intervencion_id: respondeA,
+    nodo_id: nodoId,
+    metadata
+  };
+  const fingerprint = createHash('sha256')
+    .update(JSON.stringify(fingerprintPayload), 'utf8')
+    .digest('hex');
 
-  if (intervencionError) throw intervencionError;
+  const { data, error } = await supabase.rpc('arkhe_complete_invocation_atomically', {
+    p_convocatoria_id: convocatoriaId,
+    p_dispatch_id: dispatchId,
+    p_ronda_id: rondaId,
+    p_investigador_id: investigadorId,
+    p_tipo: tipo,
+    p_contenido: contenido,
+    p_responde_a_intervencion_id: respondeA,
+    p_nodo_id: nodoId,
+    p_metadata: metadata,
+    p_fingerprint: fingerprint
+  });
 
-  const { data: updatedConvocatoria, error: updateError } = await supabase
-    .from('convocatorias_ronda')
-    .update({
-      estado: 'completada',
-      completed_at: new Date().toISOString()
-    })
-    .eq('id', convocatoriaId)
-    .select('*')
-    .single();
+  if (error) raiseMappedCompletionError(error);
+  if (!data?.intervencion || !data?.convocatoria) {
+    const inconsistent = new Error('La respuesta de la RPC transaccional está incompleta; requiere reconciliación manual.');
+    inconsistent.status = 503;
+    throw inconsistent;
+  }
 
-  if (updateError) throw updateError;
-
-  return { intervencion, convocatoria: updatedConvocatoria };
+  return {
+    intervencion: data.intervencion,
+    convocatoria: data.convocatoria,
+    idempotent_replay: data.idempotent_replay === true
+  };
 }
-
 
 
 async function actionFailInvocation(supabase, body, serviceIdentity) {
   const investigadorId = requireBoundInvestigator(serviceIdentity);
-  const convocatoriaId = uuid(body.convocatoria_id, 'convocatoria_id');
+  const convocatoriaId = requireUuidShape(body.convocatoria_id, 'convocatoria_id');
+  const dispatchId = requireUuidShape(body.dispatch_id, 'dispatch_id');
 
   if (body.investigador_id && body.investigador_id !== investigadorId) {
     const forbidden = new Error('El investigador declarado no coincide con la identidad del servicio.');
@@ -516,38 +909,28 @@ async function actionFailInvocation(supabase, body, serviceIdentity) {
     throw forbidden;
   }
 
-  const { data: convocatoria, error: convocatoriaError } = await supabase
-    .from('convocatorias_ronda')
-    .select('*')
-    .eq('id', convocatoriaId)
-    .single();
+  // The database locks invocation then dispatch and changes state atomically.
+  // A dispatch that was manually revoked during reconciliation cannot mark a
+  // newer attempt as failed.
+  const { data, error } = await supabase.rpc('arkhe_fail_invocation_atomically', {
+    p_dispatch_id: dispatchId,
+    p_convocatoria_id: convocatoriaId,
+    p_investigador_id: investigadorId
+  });
 
-  if (convocatoriaError) throw convocatoriaError;
-  if (!convocatoria) throw new Error('Convocatoria no encontrada.');
-  if (convocatoria.investigador_id !== investigadorId) {
-    const forbidden = new Error('El investigador no coincide con la identidad del servicio.');
-    forbidden.status = 403;
-    throw forbidden;
+  if (error) mapDispatchRpcError(error);
+  if (!data?.convocatoria) {
+    const invalid = new Error('Arkhé Core no devolvió el estado final de la convocatoria.');
+    invalid.status = 502;
+    throw invalid;
   }
 
-  if (!['enviada', 'pendiente'].includes(convocatoria.estado)) {
-    return { convocatoria };
-  }
-
-  const { data, error } = await supabase
-    .from('convocatorias_ronda')
-    .update({
-      estado: 'error',
-      completed_at: new Date().toISOString()
-    })
-    .eq('id', convocatoriaId)
-    .select('*')
-    .single();
-
-  if (error) throw error;
-
-  return { convocatoria: data };
+  return {
+    convocatoria: data.convocatoria,
+    idempotent_replay: data.idempotent_replay === true
+  };
 }
+
 
 async function actionOpenDebate(supabase, body, actorId) {
 
@@ -667,11 +1050,26 @@ export default async function handler(req, res) {
 
     let result;
     switch (body.action) {
+      case 'consultar_ronda_prueba':
+        result = await actionLoadStagingRound(supabase, body, humanIdentity);
+        break;
       case 'iniciar_ronda':
         result = await actionStartRound(supabase, body, humanIdentity);
         break;
       case 'convocar_investigadores':
         result = await actionCreateInvocations(supabase, body, humanIdentity);
+        break;
+      case 'claim_convocation_dispatch':
+        result = await actionClaimInvocationDispatch(supabase, body, serviceIdentity);
+        break;
+      case 'diagnosticar_conexion':
+        result = await actionDiagnoseServiceConnection(serviceIdentity);
+        break;
+      case 'despachar_convocatoria':
+        result = await actionDispatchInvocation(supabase, body, humanIdentity);
+        break;
+      case 'reconciliar_despacho_convocatoria':
+        result = await actionReconcileInvocationDispatch(supabase, body, humanIdentity);
         break;
       case 'obtener_convocatoria':
         result = await actionGetInvocation(supabase, body, serviceIdentity);

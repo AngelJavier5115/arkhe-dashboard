@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'none'; img-src 'none'; object-src 'none'; frame-src 'none'; form-action 'none'; base-uri 'none'">
+<title>Arkhé A.4 — Generador local Ed25519</title>
+<style>
+:root{color-scheme:dark;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#080d1b;color:#e6ebf6}
+*{box-sizing:border-box}body{margin:0;padding:20px;max-width:780px;margin-inline:auto}
+header{padding:12px 0 20px}h1{font-size:1.55rem;margin:.2rem 0 .6rem}h2{font-size:1.1rem;margin:0 0 12px}p{line-height:1.5;color:#b5c0d4}.warning{border:1px solid #9e6a29;background:#23180e;border-radius:14px;padding:14px;margin:14px 0;color:#ffdda6}
+button{border:1px solid #6a70ff;background:#5145ee;color:white;border-radius:10px;padding:12px 14px;font-size:1rem;font-weight:650;cursor:pointer}
+button.secondary{background:#121b30;border-color:#34435e;color:#e6ebf6}button.danger{background:#35151c;border-color:#a94a5a;color:#ffdbe2}button:disabled{opacity:.55;cursor:wait}
+.card{border:1px solid #26344b;background:#0e1729;border-radius:16px;padding:16px;margin:14px 0}
+label{display:block;font-weight:650;margin:12px 0 6px}.field{display:flex;gap:8px;align-items:stretch}.field input{min-width:0;flex:1;background:#070d19;border:1px solid #34435e;border-radius:9px;color:#e6ebf6;padding:10px;font-size:.78rem}
+.small{font-size:.86rem;color:#aab6ca}.status{white-space:pre-wrap;overflow-wrap:anywhere;color:#aee5d1}.footer{font-size:.82rem;color:#8e9bb2;margin:20px 0}.row{display:flex;gap:8px;flex-wrap:wrap}
+@media(max-width:520px){body{padding:14px}.field{flex-wrap:wrap}.field input{flex-basis:100%}}
+</style>
+</head>
+<body>
+<header>
+  <p class="small">ARKHÉ CORE · A.4 · HERRAMIENTA LOCAL PARA PREVIEW</p>
+  <h1>Generador de pares de claves Ed25519</h1>
+  <p>Genera cuatro pares separados: uno para la firma de Core y uno para cada investigador. Todo se genera localmente en este navegador.</p>
+</header>
+<div class="warning"><strong>Privacidad: lee antes de continuar</strong><br>
+El paquete descargado contiene cuatro claves privadas. Trátalo como un archivo muy sensible: no lo subas a GitHub, no lo envíes por chat ni compartas capturas. Guárdalo temporalmente en un lugar privado de tu iPhone, configura cada privada directamente en el entorno Preview correcto y elimina el archivo al terminar, incluida la carpeta «Eliminado recientemente». Nunca sustituyas las claves de los servicios de producción/main con estas claves de prueba.</div>
+<div class="row">
+  <button id="generate" onclick="generateKeys()">Generar cuatro pares nuevos y descargar paquete</button>
+  <button class="secondary" onclick="clearKeys()">Borrar de la pantalla</button>
+</div>
+<p id="status" class="status" role="status">Listo. Todavía no se ha generado ninguna clave nueva.</p>
+<div id="keys"></div>
+<p class="footer">La página no hace peticiones de red y no almacena claves en localStorage. Una política de seguridad con connect-src 'none' bloquea conexiones de red desde esta página. Usa Web Crypto Ed25519. Si el navegador no admite esta función, no se generarán claves. Si la pestaña se reinicia, utiliza el paquete descargado; no vuelvas a generar otra vez hasta decidir qué claves reemplazar.</p>
+<script>
+const keySpecs = [
+  {
+    id:'core-dispatch',
+    title:'Core → investigadores',
+    privateName:'ARKHE_CORE_DISPATCH_PRIVATE_KEY',
+    privateWhere:'Vercel Preview · rama security/a4-idempotent-completion',
+    publicName:'ARKHE_CORE_DISPATCH_PUBLIC_KEY',
+    publicWhere:'Cada uno de los tres servicios Render Preview'
+  },
+  {
+    id:'atlas',
+    title:'Atlas → Core',
+    privateName:'ARKHE_SERVICE_PRIVATE_KEY',
+    privateWhere:'Render · atlas-preview solamente',
+    publicName:'ARKHE_ATLAS_PUBLIC_KEY',
+    publicWhere:'Vercel Preview · rama security/a4-idempotent-completion'
+  },
+  {
+    id:'aletheia',
+    title:'Aletheia → Core',
+    privateName:'ARKHE_SERVICE_PRIVATE_KEY',
+    privateWhere:'Render · aletheia-preview solamente',
+    publicName:'ARKHE_ALETHEIA_PUBLIC_KEY',
+    publicWhere:'Vercel Preview · rama security/a4-idempotent-completion'
+  },
+  {
+    id:'tekton',
+    title:'Tekton → Core',
+    privateName:'ARKHE_SERVICE_PRIVATE_KEY',
+    privateWhere:'Render · tekton-preview solamente',
+    publicName:'ARKHE_TEKTON_PUBLIC_KEY',
+    publicWhere:'Vercel Preview · rama security/a4-idempotent-completion'
+  }
+];
+
+function bytesToBase64(buffer) {
+  const bytes = new Uint8Array(buffer);
+  let binary = '';
+  for (let i=0;i<bytes.length;i++) binary += String.fromCharCode(bytes[i]);
+  return btoa(binary);
+}
+function pemOneLine(label, buffer) {
+  const base64 = bytesToBase64(buffer);
+  return '-----BEGIN ' + label + '-----\n' + base64 + '\n-----END ' + label + '-----\n';
+}
+function addButton(parent,text,fn,cls='secondary') {
+  const b=document.createElement('button');
+  b.className=cls;
+  b.textContent=text;
+  b.onclick=fn;
+  parent.appendChild(b);
+  return b;
+}
+function addDownloadButton(parent,text,filename,value,isPrivate) {
+  return addButton(parent,text,()=>{
+    try {
+      const blob=new Blob([value],{type:'text/plain;charset=utf-8'});
+      const url=URL.createObjectURL(blob);
+      const a=document.createElement('a');
+      a.href=url;
+      a.download=filename;
+      a.rel='noopener';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(()=>URL.revokeObjectURL(url),1000);
+      document.getElementById('status').textContent=isPrivate
+       ? 'Descarga solicitada para la clave privada. Guárdala de forma privada y pégala solo en el campo secreto indicado. No la envíes por chat.'
+       : 'Descarga solicitada para la clave pública. La clave pública no es secreta.';
+    } catch(error) {
+      document.getElementById('status').textContent='No se pudo descargar el archivo. Mantén esta página abierta y no salgas sin guardar el paquete completo.';
+    }
+  });
+}
+function addField(card,labelText,value,isPrivate,service,kind) {
+  const label=document.createElement('label');
+  label.textContent=labelText;
+  card.appendChild(label);
+  const row=document.createElement('div');
+  row.className='field';
+  const input=document.createElement('input');
+  input.readOnly=true;
+  input.value=value;
+  input.type=isPrivate?'password':'text';
+  input.autocomplete='off';
+  input.spellcheck=false;
+  row.appendChild(input);
+  if(isPrivate) {
+    addButton(row,'Mostrar',()=>{
+      const visible=input.type==='text';
+      input.type=visible?'password':'text';
+      row.querySelector('button').textContent=visible?'Mostrar':'Ocultar';
+    });
+  }
+  card.appendChild(row);
+  const buttons=document.createElement('div');
+  buttons.className='row';
+  if(isPrivate) {
+    addDownloadButton(buttons,'Descargar privada',service.id+'-private.pem',value,true);
+  } else {
+    addButton(buttons,'Copiar pública',async()=>{
+      try {
+        await navigator.clipboard.writeText(value);
+        document.getElementById('status').textContent='Clave pública copiada. Esta sí se puede enviar para configurar '+service.publicName+'.';
+      } catch {
+        document.getElementById('status').textContent='No se pudo copiar automáticamente; selecciona el campo público y cópialo manualmente.';
+      }
+    });
+    addDownloadButton(buttons,'Descargar pública',service.id+'-public.pem',value,false);
+  }
+  card.appendChild(buttons);
+}
+async function generateKeys() {
+  const button=document.getElementById('generate');
+  const host=document.getElementById('keys');
+  button.disabled=true;
+  host.replaceChildren();
+  document.getElementById('status').textContent='Generando cuatro pares independientes en el navegador…';
+  try {
+    if(!window.isSecureContext || !window.crypto || !window.crypto.subtle) {
+      throw new Error('Se requiere HTTPS y Web Crypto en un navegador compatible.');
+    }
+    const pairs=[];
+    for(const spec of keySpecs) {
+      const pair=await crypto.subtle.generateKey({name:'Ed25519'},true,['sign','verify']);
+      const privateDer=await crypto.subtle.exportKey('pkcs8',pair.privateKey);
+      const publicDer=await crypto.subtle.exportKey('spki',pair.publicKey);
+      pairs.push({
+        id:spec.id,
+        title:spec.title,
+        privateVariable:spec.privateName,
+        privateEnvironment:spec.privateWhere,
+        publicVariable:spec.publicName,
+        publicEnvironment:spec.publicWhere,
+        privateKeyPem:pemOneLine('PRIVATE KEY',privateDer),
+        publicKeyPem:pemOneLine('PUBLIC KEY',publicDer)
+      });
+    }
+    const bundleText=[
+      'ARKHÉ A.4 — PAQUETE SENSIBLE DE CLAVES ED25519. NO COMPARTIR.',
+      'Configura cada clave privada solo en la variable secreta y el entorno indicados. Borra este archivo de forma segura al terminar.',
+      ...pairs.map(pair=>[
+        '================================================================',
+        pair.title,
+        'Variable privada: '+pair.privateVariable,
+        'Entorno privado: '+pair.privateEnvironment,
+        pair.privateKeyPem,
+        'Variable pública: '+pair.publicVariable,
+        'Entorno público: '+pair.publicEnvironment,
+        pair.publicKeyPem
+      ].join('\n'))
+    ].join('\n\n');
+    const blob=new Blob([bundleText],{type:'text/plain;charset=utf-8'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    a.href=url;
+    a.download='arkhe-a4-KEYS-KEEP-PRIVATE.txt';
+    a.rel='noopener';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),1000);
+
+    for(const pair of pairs) {
+      const spec=keySpecs.find(s=>s.id===pair.id);
+      const card=document.createElement('section');
+      card.className='card';
+      const h=document.createElement('h2');
+      h.textContent=pair.title;
+      card.appendChild(h);
+      const privateNote=document.createElement('p');
+      privateNote.className='small';
+      privateNote.textContent='Privada: '+pair.privateVariable+' · '+pair.privateEnvironment+'.';
+      card.appendChild(privateNote);
+      addField(card,'Clave privada — no compartir',pair.privateKeyPem,true,spec,'private');
+      const publicNote=document.createElement('p');
+      publicNote.className='small';
+      publicNote.textContent='Pública: '+pair.publicVariable+' · '+pair.publicEnvironment+'.';
+      card.appendChild(publicNote);
+      addField(card,'Clave pública — no es secreta',pair.publicKeyPem,false,spec,'public');
+      host.appendChild(card);
+    }
+    const again=document.createElement('div');
+    again.className='warning';
+    again.textContent='Comprueba que el paquete se haya descargado antes de salir de esta página. Si no aparece en Descargas, no cambies de aplicación: vuelve a pulsar «Generar cuatro pares nuevos y descargar paquete» solo si no habías obtenido ya un paquete y no habías copiado ninguna privada a un servicio.';
+    host.prepend(again);
+    document.getElementById('status').textContent='Los cuatro pares se generaron en memoria y se solicitó descargar el paquete. Antes de cambiar de aplicación, verifica que el archivo aparezca en Descargas. Las públicas mostradas deben emparejarse con las privadas del mismo paquete.';
+  } catch(error) {
+    host.replaceChildren();
+    document.getElementById('status').textContent='No se generaron claves: '+(error&&error.message?error.message:String(error));
+  } finally {
+    button.disabled=false;
+  }
+}
+function clearKeys() {
+  document.getElementById('keys').replaceChildren();
+  document.getElementById('status').textContent='La pantalla se ha limpiado. El archivo descargado, si existe, no se borra automáticamente.';
+}
+</script>
+</body>
+</html>

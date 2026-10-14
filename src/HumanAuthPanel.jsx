@@ -1,81 +1,156 @@
 import { useEffect, useState } from 'react';
-import { startAuthentication, startRegistration } from '@simplewebauthn/browser';
+import { startAuthentication, startRegistration, WebAuthnAbortService } from '@simplewebauthn/browser';
+import CoreGovernancePanel from './CoreGovernancePanel';
 import { KeyRound, LogIn, LogOut, ShieldCheck, ShieldAlert } from 'lucide-react';
 
-async function jsonFetch(path, init = {}) {
-  const response = await fetch(path, {
-    credentials: 'same-origin',
-    ...init,
-    headers: {
-      ...(init.body ? { 'Content-Type': 'application/json' } : {}),
-      ...(init.headers ?? {}),
-    },
-  });
+const AUTH_REQUEST_TIMEOUT_MS = 15000;
 
-  const body = await response.json().catch(() => ({}));
+async function jsonFetch(path, init = {}) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), AUTH_REQUEST_TIMEOUT_MS);
+  let response;
+  let body;
+
+  try {
+    response = await fetch(path, {
+      credentials: 'same-origin',
+      ...init,
+      headers: {
+        ...(init.body ? { 'Content-Type': 'application/json' } : {}),
+        ...(init.headers ?? {}),
+      },
+      signal: controller.signal,
+    });
+    body = await response.json().catch(() => ({}));
+  } catch {
+    const timedOut = controller.signal.aborted;
+    const error = new Error(timedOut
+      ? 'La solicitud de autenticación tardó más de 15 segundos. Actualiza la página y comprueba la sesión y las passkeys antes de repetir el registro o la autenticación.'
+      : 'No hubo respuesta de red del servicio de autenticación. Comprueba la sesión y las passkeys antes de repetir la operación.');
+    error.networkAmbiguous = (init.method ?? 'GET').toUpperCase() !== 'GET';
+    error.timedOut = timedOut;
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+
   if (!response.ok) throw new Error(body.error ?? 'La operación no pudo completarse.');
   return body;
 }
 
+const WEBAUTHN_CEREMONY_TIMEOUT_MS = 60000;
+
+async function withWebAuthnCeremonyTimeout(ceremonyPromise, description) {
+  let timeoutId;
+  const timeoutPromise = new Promise((_, reject) => {
+    timeoutId = setTimeout(() => {
+      // SimpleWebAuthn owns the AbortController used by navigator.credentials.get/create.
+      // Starting a fresh signal aborts the browser ceremony that has stalled.
+      try {
+        WebAuthnAbortService.createNewAbortSignal();
+      } catch {
+        // The visible timeout still releases the UI if the browser cannot cancel it.
+      }
+      const error = new Error(
+        description + ' con passkey no terminó en 60 segundos. Se solicitó cancelar el intento para liberar el panel. Comprueba el estado antes de volver a intentarlo.'
+      );
+      error.webauthnTimedOut = true;
+      reject(error);
+    }, WEBAUTHN_CEREMONY_TIMEOUT_MS);
+  });
+
+  try {
+    return await Promise.race([ceremonyPromise, timeoutPromise]);
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
 export default function HumanAuthPanel() {
   const [authenticated, setAuthenticated] = useState(false);
+  const [sessionLoading, setSessionLoading] = useState(true);
   const [expiresAt, setExpiresAt] = useState(null);
   const [reauthenticatedAt, setReauthenticatedAt] = useState(null);
   const [credentials, setCredentials] = useState([]);
   const [bootstrapSecret, setBootstrapSecret] = useState('');
   const [status, setStatus] = useState('');
   const [busy, setBusy] = useState(false);
+  const [progress, setProgress] = useState('');
 
   const refreshSession = async () => {
     const result = await jsonFetch('/api/auth/session');
     const isAuthenticated = Boolean(result.authenticated);
-    setAuthenticated(isAuthenticated);
-    setExpiresAt(result.expires_at ?? null);
-    setReauthenticatedAt(result.reauthenticated_at ?? null);
 
+    // Fetch the dependent credential list before exposing the authenticated panel.
+    // This keeps Face ID completion, session validation, and page transition in order.
+    let nextCredentials = [];
     if (isAuthenticated) {
       const listed = await jsonFetch('/api/auth/webauthn/credentials');
-      setCredentials(Array.isArray(listed.credentials) ? listed.credentials : []);
-    } else {
-      setCredentials([]);
+      nextCredentials = Array.isArray(listed.credentials) ? listed.credentials : [];
     }
+
+    setCredentials(nextCredentials);
+    setExpiresAt(result.expires_at ?? null);
+    setReauthenticatedAt(result.reauthenticated_at ?? null);
+    setAuthenticated(isAuthenticated);
   };
 
   useEffect(() => {
+    let mounted = true;
     refreshSession().catch(() => {
+      if (!mounted) return;
       setAuthenticated(false);
       setCredentials([]);
+    }).finally(() => {
+      if (mounted) setSessionLoading(false);
     });
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   const login = async () => {
     setBusy(true);
+    setProgress('Preparando la autenticación con passkey…');
     setStatus('');
     try {
       const options = await jsonFetch('/api/auth/webauthn/options', { method: 'POST' });
-      const response = await startAuthentication({ optionsJSON: options });
+      setProgress('Confirma tu identidad con Face ID para continuar…');
+      const response = await withWebAuthnCeremonyTimeout(
+        startAuthentication({ optionsJSON: options }),
+        'La autenticación'
+      );
+      setProgress('Face ID confirmado. Verificando la respuesta y la sesión…');
       await jsonFetch('/api/auth/webauthn/verify', {
         method: 'POST',
         body: JSON.stringify(response),
       });
+      setProgress('Sesión verificada. Cargando credenciales y Gobierno humano…');
       await refreshSession();
-      setStatus('Sesión humana verificada. La reautenticación es válida durante diez minutos.');
+      setStatus('Sesión humana verificada. No se ha registrado una passkey nueva; la reautenticación es válida durante diez minutos.');
     } catch (error) {
       setStatus(error?.message ?? 'No fue posible autenticar la sesión.');
     } finally {
+      setProgress('');
       setBusy(false);
     }
   };
 
   const register = async () => {
     setBusy(true);
+    setProgress('Preparando el registro de passkey…');
     setStatus('');
     try {
       const options = await jsonFetch('/api/auth/webauthn/register-options', {
         method: 'POST',
         headers: bootstrapSecret ? { 'x-arkhe-bootstrap': bootstrapSecret } : undefined,
       });
-      const response = await startRegistration({ optionsJSON: options });
+      setProgress('Confirma el registro de la passkey con Face ID…');
+      const response = await withWebAuthnCeremonyTimeout(
+        startRegistration({ optionsJSON: options }),
+        'El registro'
+      );
+      setProgress('Face ID confirmado. Verificando y guardando la nueva passkey…');
       const result = await jsonFetch('/api/auth/webauthn/register-verify', {
         method: 'POST',
         headers: bootstrapSecret ? { 'x-arkhe-bootstrap': bootstrapSecret } : undefined,
@@ -85,10 +160,12 @@ export default function HumanAuthPanel() {
       setStatus(result.bootstrap
         ? 'Passkey principal registrada. Autentica con ella para continuar con la credencial de recuperación.'
         : 'Passkey adicional registrada correctamente.');
+      setProgress('Passkey guardada. Actualizando el estado de la sesión…');
       await refreshSession();
     } catch (error) {
       setStatus(error?.message ?? 'No fue posible registrar la passkey.');
     } finally {
+      setProgress('');
       setBusy(false);
     }
   };
@@ -152,7 +229,13 @@ export default function HumanAuthPanel() {
         </span>
       </div>
 
-      {!authenticated && (
+      {sessionLoading && (
+        <div role="status" aria-live="polite" className="mt-4 rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-3 text-xs text-slate-300">
+          Comprobando la sesión humana existente antes de mostrar las acciones de acceso…
+        </div>
+      )}
+
+      {!authenticated && !sessionLoading && (
         <div className="mt-4 grid gap-2 sm:grid-cols-[1fr_auto]">
           <input
             type="password"
@@ -271,10 +354,20 @@ export default function HumanAuthPanel() {
               </ul>
             )}
           </div>
+
+          <CoreGovernancePanel
+            authenticated={authenticated}
+            reauthenticatedAt={reauthenticatedAt}
+          />
         </div>
       )}
 
-      {status && <p role="status" className="mt-3 text-xs text-slate-400">{status}</p>}
+      {busy && progress && (
+        <p role="status" aria-live="polite" className="mt-3 rounded-lg border border-indigo-900/70 bg-indigo-950/30 px-3 py-2 text-xs text-indigo-200">
+          {progress}
+        </p>
+      )}
+      {status && <p role="status" aria-live="polite" className="mt-3 text-xs text-slate-400">{status}</p>}
     </section>
   );
 }

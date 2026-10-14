@@ -8,7 +8,7 @@ const IDS = {
 };
 
 function fakeSupabase(convocatoria) {
-  const calls = { rpc: 0, update: 0, lastRpcArgs: null };
+  const calls = { rpc: 0, update: 0, lastRpcArgs: null, lastRpcName: null };
 
   const table = {
     select() { return this; },
@@ -19,11 +19,16 @@ function fakeSupabase(convocatoria) {
 
   const supabase = {
     from() { return table; },
-    rpc: async (_name, args) => {
+    rpc: async (name, args) => {
       calls.rpc += 1;
+      calls.lastRpcName = name;
       calls.lastRpcArgs = args;
       return {
-        data: { id: 'intervencion-test', ...args },
+        data: {
+          intervencion: { id: 'intervencion-test', metadata: args.p_metadata },
+          convocatoria: { ...convocatoria, estado: 'completada' },
+          idempotent_replay: false
+        },
         error: null
       };
     }
@@ -33,8 +38,8 @@ function fakeSupabase(convocatoria) {
 }
 
 const atlasConvocatoria = {
-  id: 'conv-atlas-test',
-  ronda_id: 'round-a2-test',
+  id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+  ronda_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
   investigador_id: IDS.atlas,
   foco_intervencion_id: null,
   estado: 'enviada'
@@ -58,12 +63,16 @@ test('A2-A: the authenticated Atlas service can complete its own convocatoria', 
       investigador_id: IDS.atlas,
       ronda_id: atlasConvocatoria.ronda_id,
       convocatoria_id: atlasConvocatoria.id,
+      dispatch_id: '22222222-2222-4222-8222-222222222222',
       contenido: 'perspectiva de prueba'
     }, atlasService)
   );
 
   assert.equal(calls.rpc, 1);
+  assert.equal(calls.lastRpcName, 'arkhe_complete_invocation_atomically');
+  assert.equal(calls.update, 0, 'completion must not update convocatoria in a second API call');
   assert.equal(calls.lastRpcArgs.p_investigador_id, IDS.atlas);
+  assert.match(calls.lastRpcArgs.p_fingerprint, /^[0-9a-f]{64}$/);
 });
 
 test('A2-B: a different logical investigator cannot complete Atlas convocatoria', async () => {
@@ -75,6 +84,7 @@ test('A2-B: a different logical investigator cannot complete Atlas convocatoria'
         investigador_id: IDS.tekton,
         ronda_id: atlasConvocatoria.ronda_id,
         convocatoria_id: atlasConvocatoria.id,
+      dispatch_id: '22222222-2222-4222-8222-222222222222',
         contenido: 'intento de suplantación lógica'
       }, atlasService),
     /no coincide con la identidad del servicio/i
@@ -92,6 +102,7 @@ test('A2-C: a Tekton executor cannot submit Atlas identity even with a valid ser
         investigador_id: IDS.atlas,
         ronda_id: atlasConvocatoria.ronda_id,
         convocatoria_id: atlasConvocatoria.id,
+      dispatch_id: '22222222-2222-4222-8222-222222222222',
         contenido: 'suplantación de ejecutor'
       }, tektonService),
     /no coincide con la identidad del servicio/i
@@ -108,6 +119,7 @@ test('A2-D: without provider-response-attested metadata, model/provider remain s
       investigador_id: IDS.atlas,
       ronda_id: atlasConvocatoria.ronda_id,
       convocatoria_id: atlasConvocatoria.id,
+      dispatch_id: '22222222-2222-4222-8222-222222222222',
       contenido: 'procedencia de modelo de prueba',
       modelo: 'fabricated-model-should-not-be-trusted',
       proveedor: 'fabricated-provider'
@@ -127,6 +139,7 @@ test('A2-F: provider-response-attested provenance requires observed model and pr
       investigador_id: IDS.atlas,
       ronda_id: atlasConvocatoria.ronda_id,
       convocatoria_id: atlasConvocatoria.id,
+      dispatch_id: '22222222-2222-4222-8222-222222222222',
       contenido: 'procedencia observada de prueba',
       modelo: 'openai/gpt-oss-20b',
       proveedor: 'OpenRouter',
@@ -153,6 +166,7 @@ test('A2-G: provider-response-attested provenance rejects model mismatch', async
         investigador_id: IDS.atlas,
         ronda_id: atlasConvocatoria.ronda_id,
         convocatoria_id: atlasConvocatoria.id,
+      dispatch_id: '22222222-2222-4222-8222-222222222222',
         contenido: 'procedencia inconsistente de prueba',
         modelo: 'openai/gpt-oss-120b',
         proveedor: 'OpenRouter',
@@ -178,10 +192,35 @@ test('A2-E: direct invocation without authenticated service identity is rejected
         investigador_id: IDS.atlas,
         ronda_id: atlasConvocatoria.ronda_id,
         convocatoria_id: atlasConvocatoria.id,
+      dispatch_id: '22222222-2222-4222-8222-222222222222',
         contenido: 'sin identidad de ejecutor'
       }),
     /identidad de servicio requerida/i
   );
 
   assert.equal(calls.rpc, 0);
+});
+
+
+test('A4 completion rejects malformed payloads before reaching the atomic RPC', async () => {
+  for (const payload of [
+    { contenido: '   ' },
+    { contenido: 'texto válido', metadata: [] },
+    { contenido: 'texto válido', tipo: '' },
+    { contenido: 'texto válido', responde_a_intervencion_id: 'not-a-uuid' },
+    { contenido: 'texto válido', nodo_id: -1 },
+  ]) {
+    const { supabase, calls } = fakeSupabase(atlasConvocatoria);
+    await assert.rejects(
+      () => actionCompleteInvocation(supabase, {
+        ronda_id: atlasConvocatoria.ronda_id,
+        convocatoria_id: atlasConvocatoria.id,
+      dispatch_id: '22222222-2222-4222-8222-222222222222',
+        contenido: 'texto válido',
+        ...payload
+      }, atlasService),
+      error => error.status === 400
+    );
+    assert.equal(calls.rpc, 0, 'invalid input must not reach the database RPC');
+  }
 });
