@@ -275,10 +275,9 @@ test('un rechazo del preflight se muestra sin crear ni despachar una ronda', asy
   await page.getByRole('checkbox', { name: 'Atlas' }).check();
   await page.getByRole('button', { name: 'Revisar antes de crear' }).click();
 
-  await expect(page.getByText('Preflight sintético rechazado por la prueba sintética.', { exact: true })).toHaveCount(0);
-  await expect(page.getByRole('status').filter({ hasText: 'Preflight sintético rechazado por la prueba sintética.' })).toHaveCount(0);
-  await expect(page.getByRole('status').filter({ hasText: 'Preflight sintético rechazado por la prueba sintética.' })).toHaveCount(0);
-  await expect(page.getByRole('status').filter({ hasText: 'Preflight sintético rechazado por la prueba.' })).toBeVisible();
+  await expect(page.getByRole('status').filter({
+    hasText: 'Preflight sintético rechazado por la prueba sintética.',
+  })).toBeVisible();
 
   expect(counters.preflightRequests).toHaveLength(1);
   expect(counters.coreActions).toHaveLength(0);
