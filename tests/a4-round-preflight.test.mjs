@@ -62,3 +62,9 @@ test('Round creation UI requires a fresh preflight that still matches current in
   assert.match(panel, /Revisar antes de crear/);
   assert.match(panel, /El preflight es una ayuda de revisión, no una autorización/);
 });
+
+test('Active round date formatting is locally defined by the governance panel', () => {
+  assert.match(panel, /function formatRoundDate\(value\)/);
+  assert.match(panel, /formatRoundDate\(activeRound\.created_at\)/);
+  assert.doesNotMatch(panel, /formatDate\(activeRound\.created_at/);
+});

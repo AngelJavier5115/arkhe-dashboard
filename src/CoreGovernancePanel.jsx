@@ -61,6 +61,18 @@ async function coreAction(payload) {
   return body;
 }
 
+function formatRoundDate(value) {
+  if (!value) return 'Sin fecha';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'Sin fecha';
+  return new Intl.DateTimeFormat('es-MX', {
+    day: '2-digit',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(date);
+}
+
 function hasRecentWebAuthn(reauthenticatedAt) {
   const timestamp = reauthenticatedAt ? new Date(reauthenticatedAt).getTime() : NaN;
   const elapsed = Date.now() - timestamp;
@@ -688,7 +700,7 @@ export default function CoreGovernancePanel({ authenticated, reauthenticatedAt }
                     <ul className="mt-2 space-y-1">
                       {preflightReport.report.active_rounds.map(activeRound => (
                         <li key={activeRound.id} className="text-xs text-slate-300">
-                          Ronda #{activeRound.numero} · {activeRound.tipo} · {activeRound.estado} · {formatDate(activeRound.created_at, true)}
+                          Ronda #{activeRound.numero} · {activeRound.tipo} · {activeRound.estado} · {formatRoundDate(activeRound.created_at)}
                         </li>
                       ))}
                     </ul>
