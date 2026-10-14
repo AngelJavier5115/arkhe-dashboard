@@ -276,7 +276,7 @@ test('un rechazo del preflight se muestra sin crear ni despachar una ronda', asy
   await page.getByRole('button', { name: 'Revisar antes de crear' }).click();
 
   await expect(page.getByRole('status').filter({
-    hasText: 'Preflight sintético rechazado por la prueba sintética.',
+    hasText: 'Preflight sintético rechazado por la prueba.',
   })).toBeVisible();
 
   expect(counters.preflightRequests).toHaveLength(1);
