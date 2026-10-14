@@ -1,0 +1,64 @@
+name: UI Guard - Playwright
+
+on:
+  push:
+    branches:
+      - quality/playwright-ui-guard-v0.1
+  pull_request:
+    branches:
+      - security/a4-idempotent-completion
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ui-guard-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  mobile-ui:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 24
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund --no-package-lock
+
+      - name: Install Chromium for Playwright
+        run: npx playwright install --with-deps chromium
+
+      - name: Build Dashboard with synthetic-only client configuration
+        run: npm run build
+        env:
+          VITE_SUPABASE_URL: https://arkhe-playwright-synthetic.supabase.co
+          VITE_SUPABASE_KEY: synthetic-public-key-for-browser-tests-only
+
+      - name: Run existing unit and boundary tests
+        run: npm test
+
+      - name: Run mobile browser tests with synthetic APIs
+        run: npx playwright test
+
+      - name: Upload Playwright failure diagnostics
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: arkhe-ui-guard-playwright-results
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
+          retention-days: 7
